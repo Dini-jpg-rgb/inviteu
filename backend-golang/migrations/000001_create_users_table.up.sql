@@ -1,0 +1,13 @@
+CREATE TABLE users (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(255),
+    phone VARCHAR(50),
+    role VARCHAR(50) NOT NULL DEFAULT 'partner',
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    google_id VARCHAR(255) UNIQUE,
+    avatar TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
