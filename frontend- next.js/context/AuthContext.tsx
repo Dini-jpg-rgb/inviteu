@@ -18,7 +18,12 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string, remember?: boolean) => Promise<{ success: boolean; message?: string }>;
+  login: (
+    email: string,
+    password: string,
+    remember?: boolean,
+    selectedRole?: "partner" | "admin" | "designer"
+  ) => Promise<{ success: boolean; role?: "partner" | "admin" | "designer"; message?: string }>;
   register: (data: RegisterPartnerData) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
 }
@@ -68,7 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (email: string, password: string, remember = false) => {
+  const login = async (
+    email: string,
+    password: string,
+    remember = false,
+    selectedRole?: "partner" | "admin" | "designer"
+  ) => {
     setIsLoading(true);
     try {
       // 1. Coba hubungi backend jika tersedia
@@ -83,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const res = await fetch(`${apiUrl}/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ email, password, role: selectedRole }),
           });
           if (res.ok) {
             const json = await res.json();
@@ -101,23 +111,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!loginSuccess) {
         await new Promise((r) => setTimeout(r, 600)); // Simulasi network delay
 
+        // Tentukan role berdasarkan tab yang dipilih atau isi email
+        const targetRole: "partner" | "admin" | "designer" =
+          selectedRole ||
+          (email.toLowerCase().includes("admin")
+            ? "admin"
+            : email.toLowerCase().includes("designer")
+            ? "designer"
+            : "partner");
+
         // Validasi dummy
         if (email && password.length >= 6) {
           authToken = `mock_token_${Date.now()}`;
-          userData = {
-            id: "user_partner_01",
-            name: email.split("@")[0].toUpperCase() || "Partner InviteU",
-            email: email,
-            role: "partner",
-            status: "active",
-          };
-          partnerData = {
-            id: "partner_01",
-            user_id: "user_partner_01",
-            nama_bisnis: "Artha Wedding & Event",
-            status: "active",
-            active_package_id: "pkg_pro",
-          };
+
+          if (targetRole === "admin") {
+            userData = {
+              id: "user_admin_01",
+              name: "Superadmin InviteU",
+              email: email,
+              role: "admin",
+              status: "active",
+            };
+            partnerData = null;
+          } else if (targetRole === "designer") {
+            userData = {
+              id: "user_designer_01",
+              name: "Rian Creative Lead",
+              email: email,
+              role: "designer",
+              status: "active",
+            };
+            partnerData = null;
+          } else {
+            userData = {
+              id: "user_partner_01",
+              name: email.split("@")[0].toUpperCase() || "Partner InviteU",
+              email: email,
+              role: "partner",
+              status: "active",
+            };
+            partnerData = {
+              id: "partner_01",
+              user_id: "user_partner_01",
+              nama_bisnis: "Artha Wedding & Event",
+              status: "active",
+              active_package_id: "pkg_pro",
+            };
+          }
+
           loginSuccess = true;
         } else {
           setIsLoading(false);
@@ -136,10 +177,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("inviteu_user", JSON.stringify(userData));
         if (partnerData) {
           localStorage.setItem("inviteu_partner", JSON.stringify(partnerData));
+        } else {
+          localStorage.removeItem("inviteu_partner");
         }
 
         setIsLoading(false);
-        return { success: true };
+        return { success: true, role: userData.role as "partner" | "admin" | "designer" };
       }
 
       setIsLoading(false);
