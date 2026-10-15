@@ -141,7 +141,7 @@ export default function DesignerDashboardPage() {
                       {tpl.name}
                       {tpl.rejectionFeedback && (
                         <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 font-normal">
-                          Feedback: "{tpl.rejectionFeedback}"
+                          Feedback: &ldquo;{tpl.rejectionFeedback}&rdquo;
                         </p>
                       )}
                     </div>

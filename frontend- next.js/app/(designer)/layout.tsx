@@ -4,9 +4,11 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
+import { useAuth } from "@/context/AuthContext";
 
 export default function DesignerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   // 3 Menu Utama Designer sesuai PRD v3.0 Bagian 17
   const designerNavigation = [
@@ -96,15 +98,27 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
           </nav>
         </div>
 
-        {/* Footer info role */}
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-800/40">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200">Hak Akses: Desainer</span>
-            <Badge variant="info">Role-03</Badge>
+        {/* Footer info role & Logout button */}
+        <div className="space-y-2">
+          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-800/40">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-800 dark:text-zinc-200">Hak Akses: Desainer</span>
+              <Badge variant="info">Role-03</Badge>
+            </div>
+            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              Fokus pembuatan template & revisi feedback admin.
+            </p>
           </div>
-          <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-            Fokus pembuatan template & revisi feedback admin.
-          </p>
+
+          <button
+            onClick={() => logout()}
+            className="w-full flex items-center justify-center space-x-2 py-2 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span>Keluar (Logout)</span>
+          </button>
         </div>
       </aside>
 

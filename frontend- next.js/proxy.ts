@@ -17,10 +17,15 @@ export function proxy(request: NextRequest) {
   const isAdminRoute = pathname.startsWith("/admin");
   const isDesignerRoute = pathname.startsWith("/designer");
   const isAuthRoute =
-    pathname === "/login" || pathname === "/register" || pathname === "/forgot-password";
+    pathname.startsWith("/login") || pathname === "/register" || pathname === "/forgot-password";
+
+  if (pathname === "/logout") {
+    return NextResponse.next();
+  }
 
   // 2. Jika user sudah login dan mencoba akses halaman Login/Register, redirect ke dashboard
-  if (isAuthRoute && token) {
+  const isSwitchingAccount = request.nextUrl.searchParams.get("switch") === "true";
+  if (isAuthRoute && token && !isSwitchingAccount) {
     if (userRole === "admin") {
       return NextResponse.redirect(new URL("/admin/dashboard", request.url));
     }

@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load auth state saat aplikasi pertama kali dimuat
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     try {
       const storedToken = localStorage.getItem("inviteu_token");
       const storedUser = localStorage.getItem("inviteu_user");
@@ -109,26 +110,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Fallback mode offline/development agar FE langsung bisa dites
       if (!loginSuccess) {
-        await new Promise((r) => setTimeout(r, 600)); // Simulasi network delay
+        await new Promise((r) => setTimeout(r, 400)); // Simulasi network delay
 
-        // Tentukan role berdasarkan tab yang dipilih atau isi email
-        const targetRole: "partner" | "admin" | "designer" =
-          selectedRole ||
-          (email.toLowerCase().includes("admin")
-            ? "admin"
-            : email.toLowerCase().includes("designer")
-            ? "designer"
-            : "partner");
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanPassword = password.trim();
 
-        // Validasi dummy
-        if (email && password.length >= 6) {
+        // Akun terdaftar resmi sesuai spesifikasi
+        const registeredUsers: Record<
+          string,
+          { password: string; role: "partner" | "admin" | "designer"; name: string; business?: string }
+        > = {
+          "admin@gmail.com": {
+            password: "111111",
+            role: "admin",
+            name: "Superadmin InviteU",
+          },
+          "designer@gmail.com": {
+            password: "222222",
+            role: "designer",
+            name: "Lead Designer InviteU",
+          },
+          "partner@gmail.com": {
+            password: "333333",
+            role: "partner",
+            name: "Dwi Mahardika (Partner)",
+            business: "Mahardika Wedding Planner",
+          },
+          // Dukungan akun inviteu.id sebelumnya
+          "admin@inviteu.id": {
+            password: "password123",
+            role: "admin",
+            name: "Superadmin InviteU",
+          },
+          "designer@inviteu.id": {
+            password: "password123",
+            role: "designer",
+            name: "Lead Designer InviteU",
+          },
+          "partner@inviteu.id": {
+            password: "password123",
+            role: "partner",
+            name: "Artha Wedding Partner",
+            business: "Artha Wedding & Event",
+          },
+        };
+
+        // 1. Cek apakah email terdaftar di sistem
+        const registeredUser = registeredUsers[cleanEmail];
+
+        if (registeredUser) {
+          // Isolasi Ketat Role: Jika halaman login dikhususkan untuk role tertentu, tolak jika role tidak cocok
+          if (selectedRole && registeredUser.role !== selectedRole) {
+            setIsLoading(false);
+            const roleNames: Record<string, string> = {
+              partner: "Partner",
+              admin: "Admin",
+              designer: "Designer",
+            };
+            return {
+              success: false,
+              message: `Akses Ditolak: Akun '${cleanEmail}' adalah akun ${roleNames[registeredUser.role]}, tidak dapat masuk di halaman ${roleNames[selectedRole]}. Silakan gunakan link login khusus ${roleNames[registeredUser.role]}.`,
+            };
+          }
+
+          if (cleanPassword !== registeredUser.password) {
+            setIsLoading(false);
+            return {
+              success: false,
+              message: `Kata sandi salah untuk akun ${registeredUser.role}. Silakan periksa kembali.`,
+            };
+          }
+
           authToken = `mock_token_${Date.now()}`;
+          const targetRole = registeredUser.role;
 
           if (targetRole === "admin") {
             userData = {
               id: "user_admin_01",
-              name: "Superadmin InviteU",
-              email: email,
+              name: registeredUser.name,
+              email: cleanEmail,
               role: "admin",
               status: "active",
             };
@@ -136,8 +196,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else if (targetRole === "designer") {
             userData = {
               id: "user_designer_01",
-              name: "Rian Creative Lead",
-              email: email,
+              name: registeredUser.name,
+              email: cleanEmail,
               role: "designer",
               status: "active",
             };
@@ -145,15 +205,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             userData = {
               id: "user_partner_01",
-              name: email.split("@")[0].toUpperCase() || "Partner InviteU",
-              email: email,
+              name: registeredUser.name,
+              email: cleanEmail,
               role: "partner",
               status: "active",
             };
             partnerData = {
               id: "partner_01",
               user_id: "user_partner_01",
-              nama_bisnis: "Artha Wedding & Event",
+              nama_bisnis: registeredUser.business || "Mitra Partner InviteU",
               status: "active",
               active_package_id: "pkg_pro",
             };
@@ -161,8 +221,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           loginSuccess = true;
         } else {
-          setIsLoading(false);
-          return { success: false, message: "Email atau kata sandi tidak valid (minimal 6 karakter)" };
+          // Akun admin & designer wajib sudah terdaftar di sistem
+          if (selectedRole === "admin" || selectedRole === "designer") {
+            setIsLoading(false);
+            return {
+              success: false,
+              message: `Akun ${selectedRole} tidak terdaftar di sistem. Hubungi tim teknis InviteU.`,
+            };
+          }
+
+          // Akun partner umum / pendaftaran baru (fallback)
+          if (cleanPassword.length < 6) {
+            setIsLoading(false);
+            return { success: false, message: "Kata sandi minimal 6 karakter" };
+          }
+
+          const targetRole: "partner" | "admin" | "designer" =
+            selectedRole ||
+            (cleanEmail.includes("admin")
+              ? "admin"
+              : cleanEmail.includes("designer")
+              ? "designer"
+              : "partner");
+
+          authToken = `mock_token_${Date.now()}`;
+          userData = {
+            id: `user_${Date.now()}`,
+            name: cleanEmail.split("@")[0].toUpperCase(),
+            email: cleanEmail,
+            role: targetRole,
+            status: "active",
+          };
+
+          if (targetRole === "partner") {
+            partnerData = {
+              id: `partner_${Date.now()}`,
+              user_id: userData.id,
+              nama_bisnis: "Bisnis Partner Saya",
+              status: "active",
+            };
+          } else {
+            partnerData = null;
+          }
+
+          loginSuccess = true;
         }
       }
 
