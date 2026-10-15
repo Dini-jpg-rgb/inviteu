@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 
 	"backend-golang/internal/config"
@@ -19,11 +18,11 @@ func main() {
 		return
 	}
 
-	defer conn.Close(context.Background())
+	defer conn.Close()
 
 	fmt.Println("Database connected successfully!")
 
-	r := router.SetupRouter()
+	r := router.SetupRouter(conn, cfg.JWTSecret, cfg.AppEnv)
 
 	fmt.Println("Invitation Backend running on http://localhost:8080")
 

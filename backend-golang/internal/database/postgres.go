@@ -6,10 +6,10 @@ import (
 
 	"backend-golang/internal/config"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Connect(cfg *config.Config) (*pgx.Conn, error) {
+func Connect(cfg *config.Config) (*pgxpool.Pool, error) {
 	connString := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s",
 		cfg.DBUser,
@@ -19,11 +19,15 @@ func Connect(cfg *config.Config) (*pgx.Conn, error) {
 		cfg.DBName,
 	)
 
-	conn, err := pgx.Connect(context.Background(), connString)
-
+	pool, err := pgxpool.New(context.Background(), connString)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create database pool: %w", err)
 	}
 
-	return conn, nil
+	if err := pool.Ping(context.Background()); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("connect to database: %w", err)
+	}
+
+	return pool, nil
 }
