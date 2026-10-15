@@ -12,15 +12,16 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+	JWTSecret  string
+	AppEnv     string
 }
 
 func Load() *Config {
-	err := godotenv.Load()
+	_ = godotenv.Load()
 
-	if err != nil {
-		// Tidak error jika .env tidak ditemukan.
-		// Bisa berguna ketika menggunakan environment variables
-		// dari server production.
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "development"
 	}
 
 	return &Config{
@@ -29,5 +30,7 @@ func Load() *Config {
 		DBUser:     os.Getenv("DB_USER"),
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
+		JWTSecret:  os.Getenv("JWT_SECRET"),
+		AppEnv:     appEnv,
 	}
 }

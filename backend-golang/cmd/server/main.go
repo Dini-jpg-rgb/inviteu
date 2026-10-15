@@ -17,11 +17,12 @@ func main() {
 		fmt.Println("Database connection failed:", err)
 		return
 	}
-	defer pool.Close()
+
+	defer conn.Close()
 
 	fmt.Println("Database connected successfully!")
 
-	r := router.SetupRouter(pool)
+	r := router.SetupRouter(conn, cfg.JWTSecret, cfg.AppEnv)
 
 	fmt.Println("Invitation Backend running on http://localhost:8080")
 
