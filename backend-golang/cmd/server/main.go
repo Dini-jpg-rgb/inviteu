@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -11,8 +12,7 @@ import (
 func main() {
 	cfg := config.Load()
 
-	conn, err := database.Connect(cfg)
-
+	pool, err := database.Connect(cfg)
 	if err != nil {
 		fmt.Println("Database connection failed:", err)
 		return
@@ -26,9 +26,7 @@ func main() {
 
 	fmt.Println("Invitation Backend running on http://localhost:8080")
 
-	err = r.Run(":8080")
-
-	if err != nil {
+	if err := r.Run(":8080"); err != nil {
 		fmt.Println("Server failed:", err)
 	}
 }
