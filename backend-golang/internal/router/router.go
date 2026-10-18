@@ -57,6 +57,9 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
+		// Public template catalog route.
+		api.GET("/templates", handlers.GetTemplates(pool))
+
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
 		admin.Use(middleware.RequireRole("admin"))
