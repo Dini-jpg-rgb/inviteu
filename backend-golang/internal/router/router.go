@@ -1,4 +1,3 @@
-
 package router
 
 import (
@@ -59,6 +58,8 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 
 		// Public template catalog route.
 		api.GET("/templates", handlers.GetTemplates(pool))
+		// Public template category route.
+		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
 
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
