@@ -56,6 +56,8 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
+		// Public template catalog route.
+		api.GET("/templates", handlers.GetTemplates(pool))
 		// Public template category route.
 		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
 
