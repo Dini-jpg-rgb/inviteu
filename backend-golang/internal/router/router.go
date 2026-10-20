@@ -92,6 +92,10 @@ func SetupRouter(
 
 		api.GET("/addons", handlers.GetAddons(pool))
 		api.GET("/addons/:id", handlers.GetAddonByID(pool))
+		// Public template catalog route.
+		api.GET("/templates", handlers.GetTemplates(pool))
+		// Public template category route.
+		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
 
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
