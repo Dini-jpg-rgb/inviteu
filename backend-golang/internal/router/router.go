@@ -5,12 +5,18 @@ import (
 
 	"backend-golang/internal/handlers"
 	"backend-golang/internal/middleware"
+	"backend-golang/internal/payment"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engine {
+func SetupRouter(
+	pool *pgxpool.Pool,
+	jwtSecret string,
+	appEnv string,
+	midtransClient *payment.MidtransClient,
+) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/", func(c *gin.Context) {
@@ -56,6 +62,36 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
+		api.POST(
+			"/orders",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateOrder(pool),
+		)
+
+		api.GET(
+			"/orders",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetOrders(pool),
+		)
+
+		api.GET(
+			"/orders/:id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetOrderByID(pool),
+		)
+
+		api.POST(
+			"/orders/:id/payments",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreatePayment(pool, midtransClient),
+		)
+
+		api.GET("/addons", handlers.GetAddons(pool))
+		api.GET("/addons/:id", handlers.GetAddonByID(pool))
 		// Public template catalog route.
 		api.GET("/templates", handlers.GetTemplates(pool))
 		// Public template category route.
@@ -68,6 +104,12 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 		admin.POST("/packages", handlers.CreatePackage(pool))
 		admin.PATCH("/packages/:id", handlers.UpdatePackage(pool))
 		admin.PATCH("/packages/:id/status", handlers.UpdatePackageStatus(pool))
+
+		admin.POST("/addons", handlers.CreateAddon(pool))
+		admin.PATCH("/addons/:id", handlers.UpdateAddon(pool))
+		admin.PATCH("/addons/:id/status", handlers.UpdateAddonStatus(pool))
+		admin.GET("/addons", handlers.GetAddons(pool))
+		admin.GET("/addons/:id", handlers.GetAddonByID(pool))
 	}
 
 	return router
