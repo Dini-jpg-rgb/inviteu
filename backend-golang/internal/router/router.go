@@ -62,6 +62,11 @@ func SetupRouter(
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
+
+		// Public template detail route.
+		api.GET("/templates/:id", handlers.GetTemplateByID(pool))
+
+
 		api.POST(
 			"/orders",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -92,6 +97,7 @@ func SetupRouter(
 
 		api.GET("/addons", handlers.GetAddons(pool))
 		api.GET("/addons/:id", handlers.GetAddonByID(pool))
+
 		// Public template catalog route.
 		api.GET("/templates", handlers.GetTemplates(pool))
 		// Public template category route.
