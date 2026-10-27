@@ -16,24 +16,13 @@ export function proxy(request: NextRequest) {
 
   const isAdminRoute = pathname.startsWith("/admin");
   const isDesignerRoute = pathname.startsWith("/designer");
-  const isAuthRoute =
-    pathname.startsWith("/login") || pathname === "/register" || pathname === "/forgot-password";
 
   if (pathname === "/logout") {
     return NextResponse.next();
   }
 
-  // 2. Jika user sudah login dan mencoba akses halaman Login/Register, redirect ke dashboard
-  const isSwitchingAccount = request.nextUrl.searchParams.get("switch") === "true";
-  if (isAuthRoute && token && !isSwitchingAccount) {
-    if (userRole === "admin") {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-    }
-    if (userRole === "designer") {
-      return NextResponse.redirect(new URL("/designer/dashboard", request.url));
-    }
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
+  // 2. Akses halaman Login/Register diizinkan langsung agar pengguna dapat melihat form masuk/daftar
+  // Tidak ada auto-redirect paksa ke dashboard agar halaman login dan register selalu dapat diakses
 
   // 3. Jika rute butuh autentikasi dan token belum ada
   if (isPartnerRoute || isAdminRoute || isDesignerRoute) {

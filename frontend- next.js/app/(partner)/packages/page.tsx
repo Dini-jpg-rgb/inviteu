@@ -1,144 +1,185 @@
 "use client";
 
 import React from "react";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { usePartner } from "@/context/PartnerContext";
+import { useUserManagement } from "@/context/UserManagementContext";
 
-export default function PackagesPage() {
-  const packages = [
-    {
-      id: "pkg_basic",
-      name: "Paket Basic",
-      tier: "Basic",
-      price: "Rp 149.000",
-      quota: "3 Undangan Published",
-      gallery: "Maks. 5 Foto Galeri",
-      isCurrent: false,
-      features: [
-        "Widget Cover & Event Details",
-        "Form RSVP Standar",
-        "Peta Lokasi Google Maps",
-        "Share Link Generik",
-      ],
-    },
-    {
-      id: "pkg_pro",
-      name: "Paket Pro",
-      tier: "Pro",
-      price: "Rp 349.000",
-      quota: "10 Undangan Published",
-      gallery: "Maks. 15 Foto Galeri",
-      isCurrent: true,
-      popular: true,
-      features: [
-        "Semua fitur Paket Basic",
-        "Widget Countdown & Cerita Cinta",
-        "Widget Musik Latar",
-        "Buku Tamu / Guestbook Interaktif",
-        "Akses Event Owner (Khusus Pengantin)",
-      ],
-    },
-    {
-      id: "pkg_premium",
-      name: "Paket Premium",
-      tier: "Premium",
-      price: "Rp 799.000",
-      quota: "30 Undangan Published",
-      gallery: "Unlimited Foto Galeri",
-      isCurrent: false,
-      features: [
-        "Semua fitur Paket Pro",
-        "Widget Video Ucapan & Streaming",
-        "Hadiah Digital / Angpao Online",
-        "Dukungan Prioritas InviteU",
-      ],
-    },
-  ];
+export default function PartnerPackagesPage() {
+  const { activePackage, transactions } = usePartner();
+  const { packages } = useUserManagement();
 
   return (
-    <div className="space-y-8 max-w-6xl">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Paket & Kuota Undangan
+    <div className="space-y-6 max-w-6xl">
+      {/* 1. Header (Matching Image 4) */}
+      <div className="pt-1">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 tracking-tight">
+          Package
         </h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          Pilih paket yang sesuai dengan kebutuhan kapasitas klien vendor Anda.
+        <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">
+          Pilih package untuk membuka quota dan widget
         </p>
       </div>
 
-      {/* Quota Information Banner */}
-      <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-900 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200 flex items-start gap-3">
-        <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div className="text-xs space-y-1">
-          <p className="font-semibold text-sm">Prinsip Kuota Berbasis Publikasi (PRD v3.0)</p>
-          <p className="text-blue-800 dark:text-blue-300">
-            Kuota hanya berkurang <strong>1 kali</strong> saat pertama kali undangan dipublish. Menyimpan sebagai <em>Draft</em> dan mengubah konten yang sudah <em>Published</em> <strong>tidak mengurangi kuota lagi</strong>.
-          </p>
-        </div>
+      {/* 2. Three Package Cards (Matching Image 4) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {packages.map((pkg) => {
+          const isCurrentActive = activePackage === pkg.id;
+
+          return (
+            <div
+              key={pkg.id}
+              className="bg-[#f5a638] rounded-2xl p-5 sm:p-6 border border-[#df9226] shadow-xs flex flex-col justify-between text-[#2d1b11] relative"
+            >
+              {/* Active Badge (Top Right) */}
+              {isCurrentActive && (
+                <div className="absolute top-4 right-5">
+                  <span className="bg-[#d2f3e8] text-emerald-800 text-[10px] font-bold px-3 py-1 rounded-full shadow-2xs">
+                    Aktif
+                  </span>
+                </div>
+              )}
+
+              <div>
+                {/* Title */}
+                <h3 className="text-sm font-bold text-zinc-900">
+                  {pkg.name}
+                </h3>
+
+                {/* Price */}
+                <div className="mt-2">
+                  <span className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight">
+                    {pkg.price}
+                  </span>
+                  <p className="text-[11px] text-zinc-800 font-medium mt-0.5">
+                    {pkg.priceNote}
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-[#df9226] my-4" />
+
+                {/* Features List */}
+                <ul className="space-y-2 text-xs font-medium text-zinc-900">
+                  {pkg.features.map((feat, idx) => (
+                    <li key={idx} className="flex items-center gap-2.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-700 shrink-0" />
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-8 space-y-2">
+                {/* Button 1: Lihat detail */}
+                <Link
+                  href={`/packages/checkout?pkg=${pkg.id}`}
+                  className="block w-full"
+                >
+                  <button className="w-full bg-white hover:bg-zinc-50 text-zinc-900 font-semibold text-xs py-2.5 rounded-lg border border-zinc-200 shadow-2xs transition-colors cursor-pointer">
+                    Lihat detail
+                  </button>
+                </Link>
+
+                {/* Button 2: Pilih package OR Package aktif */}
+                {isCurrentActive ? (
+                  <button
+                    disabled
+                    className="w-full bg-white/80 text-zinc-500 font-semibold text-xs py-2.5 rounded-lg border border-zinc-200/60 cursor-default"
+                  >
+                    Package aktif
+                  </button>
+                ) : (
+                  <Link
+                    href={`/packages/checkout?pkg=${pkg.id}`}
+                    className="block w-full"
+                  >
+                    <button className="w-full bg-[#1a1a1a] hover:bg-black text-white font-semibold text-xs py-2.5 rounded-lg shadow-xs transition-colors cursor-pointer">
+                      Pilih package
+                    </button>
+                  </Link>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Package Tier Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {packages.map((pkg) => (
-          <div
-            key={pkg.id}
-            className={`rounded-2xl border p-6 flex flex-col justify-between transition relative ${
-              pkg.isCurrent
-                ? "border-zinc-900 bg-white shadow-lg ring-2 ring-zinc-900 dark:border-zinc-100 dark:ring-zinc-100 dark:bg-zinc-900"
-                : "border-zinc-200 bg-white hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/60"
-            }`}
-          >
-            {pkg.popular && (
-              <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900 shadow">
-                Paket Anda Saat Ini
-              </span>
-            )}
+      {/* 3. Status Transaksi Table (Matching Image 4) */}
+      <div className="pt-2">
+        <h3 className="text-xs sm:text-sm font-bold text-zinc-900 mb-2.5">
+          Status transaksi
+        </h3>
 
-            <div>
-              <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-50">
-                {pkg.name}
-              </h2>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50">
-                  {pkg.price}
-                </span>
-                <span className="text-xs text-zinc-500">/paket</span>
-              </div>
-
-              <div className="mt-4 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-800/60 space-y-1 text-xs">
-                <p className="font-semibold text-zinc-800 dark:text-zinc-200">
-                  📊 {pkg.quota}
-                </p>
-                <p className="text-zinc-500 dark:text-zinc-400">
-                  🖼️ {pkg.gallery}
-                </p>
-              </div>
-
-              <ul className="mt-6 space-y-2.5 text-xs text-zinc-600 dark:text-zinc-300">
-                {pkg.features.map((feat, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{feat}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="mt-8 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-              <Button
-                variant={pkg.isCurrent ? "secondary" : "primary"}
-                className="w-full font-semibold"
-                disabled={pkg.isCurrent}
-              >
-                {pkg.isCurrent ? "Paket Aktif" : "Pilih Paket"}
-              </Button>
-            </div>
+        <div className="bg-white rounded-2xl overflow-hidden border border-[#e5d8c8] shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-[#331c11] text-white">
+                <tr>
+                  <th className="py-3 px-4 font-semibold">Order</th>
+                  <th className="py-3 px-4 font-semibold">Package</th>
+                  <th className="py-3 px-4 font-semibold">Total</th>
+                  <th className="py-3 px-4 font-semibold">Status</th>
+                  <th className="py-3 px-4 font-semibold">Tanggal</th>
+                  <th className="py-3 px-4 font-semibold text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-zinc-400">
+                      <p className="font-medium text-xs">Belum ada riwayat transaksi package</p>
+                      <p className="text-[11px] text-zinc-400 mt-1">
+                        Pilih salah satu package di atas untuk memulai langganan.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  transactions.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-zinc-50/80 transition-colors">
+                      <td className="py-3.5 px-4 font-medium text-zinc-900">
+                        {tx.orderNumber}
+                      </td>
+                      <td className="py-3.5 px-4 text-zinc-700 font-medium">
+                        {tx.packageName}
+                      </td>
+                      <td className="py-3.5 px-4 text-zinc-900 font-semibold">
+                        {tx.amount}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {tx.status === "Paid" ? (
+                          <span className="inline-block bg-[#eaf7f0] text-emerald-700 font-semibold px-3 py-1 rounded-full text-[11px] border border-emerald-200">
+                            Paid
+                          </span>
+                        ) : tx.status === "Pending" ? (
+                          <span className="inline-block bg-[#fef5e7] text-amber-700 font-semibold px-3 py-1 rounded-full text-[11px] border border-amber-200">
+                            Pending
+                          </span>
+                        ) : (
+                          <span className="inline-block bg-rose-50 text-rose-700 font-semibold px-3 py-1 rounded-full text-[11px] border border-rose-200">
+                            Failed
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-zinc-600 font-normal">
+                        {tx.date}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          onClick={() => alert(`Rincian Transaksi: ${tx.orderNumber}\nPaket: ${tx.packageName}\nTotal: ${tx.amount}\nStatus: ${tx.status}`)}
+                          className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 text-[11px] font-semibold px-3.5 py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer"
+                        >
+                          Detail
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
