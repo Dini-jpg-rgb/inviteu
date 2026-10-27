@@ -42,6 +42,21 @@ func SetupRouter(
 		api.POST("/auth/logout", middleware.AuthRequired(pool, jwtSecret), handlers.Logout())
 
 		api.GET("/users/me", middleware.AuthRequired(pool, jwtSecret), handlers.GetMe(pool))
+		api.POST(
+			"/users/me/favorites",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.AddTemplateFavorite(pool),
+		)
+		api.GET(
+			"/users/me/favorites",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.GetTemplateFavorites(pool),
+		)
+		api.DELETE(
+			"/users/me/favorites/:template_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.DeleteTemplateFavorite(pool),
+		)
 		api.GET(
 			"/admin/test",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -62,10 +77,8 @@ func SetupRouter(
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
-
 		// Public template detail route.
 		api.GET("/templates/:id", handlers.GetTemplateByID(pool))
-
 
 		api.POST(
 			"/orders",
