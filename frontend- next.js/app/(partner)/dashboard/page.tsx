@@ -2,273 +2,341 @@
 
 import React from "react";
 import Link from "next/link";
-import { Card, CardHeader, CardTitle, CardContent, StatCard } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/Table";
-import { useAuth } from "@/context/AuthContext";
+import { usePartner } from "@/context/PartnerContext";
 
 export default function PartnerDashboardPage() {
-  const { partner, user } = useAuth();
+  const {
+    activePackage,
+    invitations,
+    loadDemoInvitations,
+    clearInvitations,
+    resetPackage,
+  } = usePartner();
 
-  // Mock data ringkasan undangan sesuai PRD v3.0 Bagian 11.1
-  const recentInvitations = [
-    {
-      id: "inv-001",
-      title: "Pernikahan Budi & Ani",
-      eventDate: "24 Nov 2026",
-      status: "published" as const,
-      guestsCount: 150,
-      rsvpAttending: 120,
-      slug: "budi-ani-wedding",
-    },
-    {
-      id: "inv-002",
-      title: "Resepsi Dimas & Sarah",
-      eventDate: "12 Des 2026",
-      status: "published" as const,
-      guestsCount: 80,
-      rsvpAttending: 62,
-      slug: "dimas-sarah-love",
-    },
-    {
-      id: "inv-003",
-      title: "Engagement Rizky & Maya",
-      eventDate: "05 Jan 2027",
-      status: "draft" as const,
-      guestsCount: 50,
-      rsvpAttending: 0,
-      slug: "rizky-maya",
-    },
-    {
-      id: "inv-004",
-      title: "Pernikahan Reza & Citra",
-      eventDate: "10 Okt 2026",
-      status: "expired" as const,
-      guestsCount: 200,
-      rsvpAttending: 185,
-      slug: "reza-citra",
-    },
-  ];
+  // Calculated metrics
+  const publishedInvitations = invitations.filter((i) => i.status === "Published");
+  const draftInvitations = invitations.filter((i) => i.status === "Draft");
+  const expiredInvitations = invitations.filter((i) => i.status === "Expired");
+
+  const publishedCount = publishedInvitations.length;
+  const draftCount = draftInvitations.length;
+  const expiredCount = expiredInvitations.length;
+  const totalInvitations = invitations.length;
+
+  const totalRsvpHadir = invitations.reduce(
+    (acc, curr) => acc + (curr.rsvpSummary?.hadir ?? curr.rsvpCount ?? 0),
+    0
+  );
+  const totalRsvpTidakHadir = invitations.reduce(
+    (acc, curr) => acc + (curr.rsvpSummary?.tidakHadir ?? 0),
+    0
+  );
+  const totalRsvpBelumMerespons = invitations.reduce(
+    (acc, curr) => acc + (curr.rsvpSummary?.belumMerespons ?? 0),
+    0
+  );
+
+  const maxQuota = activePackage === "basic" ? 10 : activePackage === "pro" ? 10 : 30;
+
+  // Capitalized package name
+  const packageName =
+    activePackage === "basic"
+      ? "Basic"
+      : activePackage === "pro"
+      ? "Pro"
+      : activePackage === "premium"
+      ? "Premium"
+      : "-";
 
   return (
-    <div className="space-y-8">
-      {/* 1. Header Banner & Welcome */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-200/80 pb-6 dark:border-zinc-800">
+    <div className="space-y-5 max-w-6xl">
+      {/* 1. Header (Title, Subtitle, & Create Invitation Button) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Dashboard Partner
-            </h1>
-            <Badge variant="info">B2B Portal</Badge>
-          </div>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Selamat datang kembali,{" "}
-            <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-              {partner?.nama_bisnis || "Artha Wedding Organizer"}
-            </span>{" "}
-            ({user?.email || "partner@inviteu.id"}).
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 tracking-tight">
+            Dashboard
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">
+            Ringkasan package, quota, dan invitation
           </p>
         </div>
 
-        {/* Quick Action Shortcut (PRD 11.1) */}
-        <div className="flex items-center gap-3">
-          <Link href="/packages">
-            <Button variant="outline" size="sm">
-              Tambah Kuota Paket
-            </Button>
+        <Link href="/invitations/create">
+          <button className="bg-[#331c11] hover:bg-black text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
+            <span>+</span>
+            <span>Create Invitation</span>
+          </button>
+        </Link>
+      </div>
+
+      {/* 2. Top Warning Banner (Only visible when package is not active - matching Image 1) */}
+      {!activePackage && (
+        <div className="bg-[#ebdecb] rounded-xl p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#6e4d2a] border border-[#dfceba]">
+          <span className="font-medium">
+            Kamu belum punya package aktif. Beli package untuk mulai membuat invitation.
+          </span>
+          <Link href="/packages" className="shrink-0">
+            <button className="bg-white hover:bg-zinc-50 text-zinc-900 font-semibold text-xs px-4 py-1.5 rounded-lg border border-[#d8c3ad] shadow-2xs transition-colors cursor-pointer">
+              Lihat Package
+            </button>
           </Link>
-          <Link href="/invitations/create">
-            <Button size="sm" className="shadow-sm">
-              <svg
-                className="w-4 h-4 mr-1.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Buat Undangan Baru
-            </Button>
-          </Link>
+        </div>
+      )}
+
+      {/* 3. Four Stat Cards (Matching Image 1 & Image 3) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* Card 1: Package Aktif */}
+        <div className="bg-[#f5a638] rounded-2xl p-4 sm:p-5 border border-[#df9226] text-[#2d1b11] shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold text-[#543015]">
+            Package aktif
+          </span>
+          <div className="text-3xl sm:text-4xl font-black text-[#2d1b11] mt-2 tracking-tight">
+            {activePackage ? packageName : "-"}
+          </div>
+        </div>
+
+        {/* Card 2: Quota Terpakai */}
+        <div className="bg-[#f5a638] rounded-2xl p-4 sm:p-5 border border-[#df9226] text-[#2d1b11] shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold text-[#543015]">
+            Quota terpakai
+          </span>
+          <div className="text-3xl sm:text-4xl font-black text-[#2d1b11] mt-2 tracking-tight">
+            {activePackage ? (
+              <span>
+                {publishedCount} <span className="text-xl sm:text-2xl font-bold text-[#44230b]">/ {maxQuota}</span>
+              </span>
+            ) : (
+              "-"
+            )}
+          </div>
+        </div>
+
+        {/* Card 3: Invitation Published */}
+        <div className="bg-[#f5a638] rounded-2xl p-4 sm:p-5 border border-[#df9226] text-[#2d1b11] shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold text-[#543015]">
+            Invitation Published
+          </span>
+          <div className="text-3xl sm:text-4xl font-black text-[#2d1b11] mt-2 tracking-tight">
+            {publishedCount}
+          </div>
+        </div>
+
+        {/* Card 4: RSVP Hadir */}
+        <div className="bg-[#f5a638] rounded-2xl p-4 sm:p-5 border border-[#df9226] text-[#2d1b11] shadow-xs flex flex-col justify-between">
+          <span className="text-xs font-semibold text-[#543015]">
+            RSVP hadir
+          </span>
+          <div className="text-3xl sm:text-4xl font-black text-[#2d1b11] mt-2 tracking-tight">
+            {totalRsvpHadir}
+          </div>
         </div>
       </div>
 
-      {/* 2. Informasi Package & Quota Bar (PRD 11.1 & 6.3) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 border-zinc-200/80 dark:border-zinc-800">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              Paket Langganan Aktif
-            </span>
-            <Badge variant="success">Aktif</Badge>
-          </div>
-          <h3 className="mt-3 text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            Pro Partner Tier
+      {/* 4. Conditional Content: Empty State (Image 1) OR Active Dashboard (Image 3) */}
+      {!activePackage ? (
+        /* Image 1: Belum Ada Package Aktif Empty State Card */
+        <div className="bg-white rounded-2xl p-16 sm:p-24 border border-[#e5d8c8] flex flex-col items-center justify-center text-center shadow-xs min-h-[380px]">
+          <h3 className="text-lg sm:text-xl font-bold text-zinc-900 tracking-tight">
+            Belum ada package aktif
           </h3>
-          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Termasuk semua widget interaktif, galeri foto s/d 20 foto & integrasi Google Maps.
+          <p className="text-xs sm:text-sm text-zinc-500 max-w-md mt-1.5 leading-relaxed font-normal">
+            Beli package untuk mulai membuat dan mempublish invitation.
           </p>
-          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-between text-xs">
-            <span className="text-zinc-500">Masa Berlaku:</span>
-            <span className="font-medium text-zinc-800 dark:text-zinc-200">Tidak Terbatas (Publish-based)</span>
-          </div>
-        </Card>
-
-        {/* Quota Progress */}
-        <Card className="p-6 border-zinc-200/80 dark:border-zinc-800 md:col-span-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-              Sisa Kuota Undangan (Publish Count)
-            </span>
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              8 Kuota Tersisa dari 10
-            </span>
-          </div>
-          <div className="mt-4 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full h-3 overflow-hidden">
-            <div
-              className="bg-zinc-900 dark:bg-zinc-50 h-3 rounded-full transition-all duration-500"
-              style={{ width: "80%" }}
-            />
-          </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-            <div>
-              <p className="font-semibold text-zinc-900 dark:text-zinc-100">
-                2 Undangan Terpakai
-              </p>
-              <p className="text-[11px]">Hanya berkurang saat pertama kali publish (PRD v3.0 Rule 6.3).</p>
-            </div>
-            <Link href="/packages" className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 underline hover:text-zinc-700">
-              Upgrade ke Premium &rarr;
-            </Link>
-          </div>
-        </Card>
-      </div>
-
-      {/* 3. Stat Cards Ringkasan Undangan & RSVP (PRD 11.1) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard
-          title="Total Undangan"
-          value="4"
-          description="Seluruh proyek undangan di akun Anda"
-          icon={
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          }
-        />
-        <StatCard
-          title="Undangan Aktif (Published)"
-          value="2"
-          description="Dapat diakses tamu undangan"
-          badge={<Badge variant="success">Published</Badge>}
-          icon={
-            <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-        />
-        <StatCard
-          title="Draft Sedang Diedit"
-          value="1"
-          description="Belum mengurangi kuota publish"
-          badge={<Badge variant="secondary">Draft</Badge>}
-          icon={
-            <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-          }
-        />
-        <StatCard
-          title="Total Konfirmasi Hadir"
-          value="182 Tamu"
-          description="Dari total 230 undangan terkirim"
-          badge={<Badge variant="info">79% Hadir</Badge>}
-          icon={
-            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          }
-        />
-      </div>
-
-      {/* 4. Tabel Daftar Undangan Terkini (Recent Invitations) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Undangan Terkini</CardTitle>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Daftar undangan yang baru-baru ini dikelola oleh tim Anda.
-            </p>
-          </div>
-          <Link href="/invitations" className="text-xs font-semibold text-zinc-900 hover:underline dark:text-zinc-100">
-            Lihat Semua Undangan &rarr;
+          <Link href="/packages">
+            <button className="bg-[#1c1c1c] hover:bg-black text-white text-xs font-semibold px-6 py-2.5 rounded-lg mt-5 shadow-xs transition-colors cursor-pointer">
+              Lihat Package
+            </button>
           </Link>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nama Acara</TableHead>
-                <TableHead>Tanggal Event</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Respon RSVP</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentInvitations.map((inv) => (
-                <TableRow key={inv.id}>
-                  <TableCell className="font-medium">
-                    <div>
-                      <p className="text-zinc-900 dark:text-zinc-50 font-semibold">{inv.title}</p>
-                      <p className="text-[11px] text-zinc-400">/{inv.slug}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-zinc-600 dark:text-zinc-400">
-                    {inv.eventDate}
-                  </TableCell>
-                  <TableCell>
-                    {inv.status === "published" && <Badge variant="success">Published</Badge>}
-                    {inv.status === "draft" && <Badge variant="secondary">Draft</Badge>}
-                    {inv.status === "expired" && <Badge variant="destructive">Expired</Badge>}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {inv.status === "published" ? (
-                      <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                        {inv.rsvpAttending} hadir / {inv.guestsCount} tamu
-                      </span>
-                    ) : inv.status === "expired" ? (
-                      <span className="text-zinc-500">{inv.rsvpAttending} hadir (Acara Selesai)</span>
+        </div>
+      ) : (
+        /* Image 3: Active Dashboard Content */
+        <div className="space-y-5">
+          {/* Middle Row: Status invitation & Ringkasan RSVP */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Status Invitation Card */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs space-y-4">
+              <h3 className="text-xs sm:text-sm font-bold text-zinc-900">
+                Status invitation
+              </h3>
+
+              <div className="space-y-3 pt-1 text-xs">
+                {/* Draft Row */}
+                <div className="flex items-center gap-3">
+                  <span className="w-16 font-medium text-zinc-700">Draft</span>
+                  <div className="flex-1 bg-zinc-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#331c11] h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: totalInvitations > 0 ? `${(draftCount / totalInvitations) * 100}%` : "0%",
+                      }}
+                    />
+                  </div>
+                  <span className="w-6 text-right font-bold text-zinc-900">{draftCount}</span>
+                </div>
+
+                {/* Published Row */}
+                <div className="flex items-center gap-3">
+                  <span className="w-16 font-medium text-zinc-700">Published</span>
+                  <div className="flex-1 bg-zinc-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#331c11] h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: totalInvitations > 0 ? `${(publishedCount / totalInvitations) * 100}%` : "0%",
+                      }}
+                    />
+                  </div>
+                  <span className="w-6 text-right font-bold text-zinc-900">{publishedCount}</span>
+                </div>
+
+                {/* Expired Row */}
+                <div className="flex items-center gap-3">
+                  <span className="w-16 font-medium text-zinc-700">Expired</span>
+                  <div className="flex-1 bg-zinc-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#331c11] h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: totalInvitations > 0 ? `${(expiredCount / totalInvitations) * 100}%` : "0%",
+                      }}
+                    />
+                  </div>
+                  <span className="w-6 text-right font-bold text-zinc-900">{expiredCount}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Ringkasan RSVP Card */}
+            <div className="bg-white rounded-2xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs space-y-3.5">
+              <h3 className="text-xs sm:text-sm font-bold text-zinc-900">
+                Ringkasan RSVP
+              </h3>
+
+              <div className="space-y-2.5 pt-1 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-600 font-medium">Hadir</span>
+                  <span className="font-bold text-zinc-900 text-sm">{totalRsvpHadir}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-600 font-medium">Tidak hadir</span>
+                  <span className="font-bold text-zinc-900 text-sm">{totalRsvpTidakHadir}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-600 font-medium">Belum merespons</span>
+                  <span className="font-bold text-zinc-900 text-sm">{totalRsvpBelumMerespons}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Table: Invitation Terbaru */}
+          <div>
+            <h3 className="text-xs sm:text-sm font-bold text-zinc-900 mb-2.5">
+              Invitation terbaru
+            </h3>
+
+            <div className="bg-white rounded-2xl overflow-hidden border border-[#e5d8c8] shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#331c11] text-white">
+                    <tr>
+                      <th className="py-3 px-4 font-semibold">Invitation</th>
+                      <th className="py-3 px-4 font-semibold">Tanggal event</th>
+                      <th className="py-3 px-4 font-semibold">Status</th>
+                      <th className="py-3 px-4 font-semibold">RSVP</th>
+                      <th className="py-3 px-4 font-semibold text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {invitations.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-10 text-center text-zinc-400">
+                          <p className="font-medium text-xs">Belum ada invitation dibuat</p>
+                          <p className="text-[11px] text-zinc-400 mt-1">
+                            Klik tombol &quot;+ Create Invitation&quot; di atas untuk membuat undangan pertama klien Anda.
+                          </p>
+                        </td>
+                      </tr>
                     ) : (
-                      <span className="text-zinc-400 italic">Belum dipublish</span>
+                      invitations.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-zinc-50/80 transition-colors">
+                          <td className="py-3.5 px-4 font-medium text-zinc-900">
+                            {inv.title}
+                          </td>
+                          <td className="py-3.5 px-4 text-zinc-600 font-normal">
+                            {inv.eventDate}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {inv.status === "Published" ? (
+                              <span className="inline-block bg-[#eaf7f0] text-emerald-700 font-semibold px-3 py-1 rounded-full text-[11px] border border-emerald-200">
+                                Published
+                              </span>
+                            ) : inv.status === "Draft" ? (
+                              <span className="inline-block bg-[#fef5e7] text-amber-700 font-semibold px-3 py-1 rounded-full text-[11px] border border-amber-200">
+                                Draft
+                              </span>
+                            ) : (
+                              <span className="inline-block bg-zinc-100 text-zinc-600 font-semibold px-3 py-1 rounded-full text-[11px]">
+                                Expired
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-zinc-700 font-medium">
+                            {inv.rsvpCount > 0 ? `${inv.rsvpCount} hadir` : "-"}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <Link href={`/invitations/${inv.id}`}>
+                              <button className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-800 text-[11px] font-semibold px-4 py-1.5 rounded-md shadow-2xs transition-colors cursor-pointer">
+                                Buka
+                              </button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
                     )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={`/invitations/${inv.id}`}
-                        className="rounded-lg px-2.5 py-1 text-xs font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 transition"
-                      >
-                        Detail & RSVP
-                      </Link>
-                      {inv.status === "published" && (
-                        <Link
-                          href={`/${inv.slug}`}
-                          target="_blank"
-                          className="rounded-lg px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-400 transition"
-                        >
-                          Buka Link
-                        </Link>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Testing Helper Panel (for testing workflows easily) */}
+      <div className="pt-6 border-t border-[#dfcebc]/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="text-zinc-500 font-medium">
+          Status Sistem: Package{" "}
+          <strong className="text-zinc-800">
+            {activePackage ? activePackage.toUpperCase() : "BELUM AKTIF"}
+          </strong>{" "}
+          | Invitation: <strong className="text-zinc-800">{invitations.length}</strong>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {invitations.length === 0 ? (
+            <button
+              onClick={loadDemoInvitations}
+              className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold text-[11px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              🧪 Simulasikan 3 Undangan Klien (Gambar 3)
+            </button>
+          ) : (
+            <button
+              onClick={clearInvitations}
+              className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300 font-medium text-[11px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              Kosongkan Undangan (Kembali ke 0)
+            </button>
+          )}
+
+          {activePackage && (
+            <button
+              onClick={resetPackage}
+              className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-medium text-[11px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              Reset Package (Kembali ke Gambar 1)
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

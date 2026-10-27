@@ -89,7 +89,7 @@ export default function HomePage() {
             </Link>
 
             {/* Kartu Desainer */}
-            <Link href="/login" className="block group">
+            <Link href="/login/designer" className="block group">
               <Card className="p-6 h-full border-indigo-200 hover:border-indigo-400 hover:shadow-md transition-all dark:border-zinc-800 dark:hover:border-indigo-600">
                 <div className="flex items-center justify-between mb-3">
                   <Badge variant="info">Desainer Template</Badge>
@@ -106,7 +106,7 @@ export default function HomePage() {
             </Link>
 
             {/* Kartu Admin */}
-            <Link href="/login" className="block group">
+            <Link href="/login/admin" className="block group">
               <Card className="p-6 h-full border-rose-200 hover:border-rose-400 hover:shadow-md transition-all dark:border-zinc-800 dark:hover:border-rose-600">
                 <div className="flex items-center justify-between mb-3">
                   <Badge variant="destructive">Superadmin</Badge>

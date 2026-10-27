@@ -42,9 +42,9 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
   ];
 
   return (
-    <div className="flex min-h-screen bg-indigo-50/20 dark:bg-zinc-950">
+    <div className="flex h-screen overflow-hidden bg-indigo-50/20 dark:bg-zinc-950">
       {/* Sidebar Designer sesuai PRD Bagian 17 */}
-      <aside className="w-[260px] shrink-0 border-r border-zinc-200 bg-white p-6 flex flex-col justify-between dark:border-zinc-800 dark:bg-zinc-900">
+      <aside className="w-[260px] shrink-0 h-screen sticky top-0 overflow-y-auto border-r border-zinc-200 bg-white p-6 flex flex-col justify-between dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-col gap-6">
           {/* Header Brand Designer */}
           <div className="flex items-center gap-2.5 px-2">
@@ -123,7 +123,7 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 h-screen overflow-y-auto p-8">
         {children}
       </main>
     </div>
