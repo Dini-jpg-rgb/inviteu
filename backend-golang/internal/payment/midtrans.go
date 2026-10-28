@@ -1,6 +1,9 @@
 package payment
 
 import (
+	"crypto/sha512"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -13,6 +16,7 @@ import (
 type MidtransClient struct {
 	client     snap.Client
 	coreClient coreapi.Client
+	serverKey  string
 }
 
 type CreateSnapRequest struct {
@@ -57,6 +61,7 @@ func NewMidtransClient(
 	return &MidtransClient{
 		client:     snapClient,
 		coreClient: coreClient,
+		serverKey:  serverKey,
 	}, nil
 }
 
@@ -133,4 +138,24 @@ func (m *MidtransClient) CheckTransactionStatus(
 		GrossAmount:       response.GrossAmount,
 		Currency:          response.Currency,
 	}, nil
+}
+
+func (m *MidtransClient) VerifyNotificationSignature(
+	orderID string,
+	statusCode string,
+	grossAmount string,
+	signatureKey string,
+) bool {
+	if m == nil || m.serverKey == "" || signatureKey == "" {
+		return false
+	}
+
+	raw := orderID + statusCode + grossAmount + m.serverKey
+	sum := sha512.Sum512([]byte(raw))
+	expected := hex.EncodeToString(sum[:])
+
+	return subtle.ConstantTimeCompare(
+		[]byte(strings.ToLower(signatureKey)),
+		[]byte(expected),
+	) == 1
 }

@@ -90,12 +90,31 @@ func SetupRouter(
 			handlers.CreatePayment(pool, midtransClient),
 		)
 
+		api.POST(
+			"/invitations/:invitation_id/addon-orders",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateAddonOrder(pool),
+		)
+
+		api.GET(
+			"/invoices",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvoices(pool),
+		)
+
 		api.GET("/addons", handlers.GetAddons(pool))
 		api.GET("/addons/:id", handlers.GetAddonByID(pool))
 		// Public template catalog route.
 		api.GET("/templates", handlers.GetTemplates(pool))
 		// Public template category route.
 		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
+
+		api.POST(
+			"/payments/midtrans/notification",
+			handlers.MidtransNotification(pool, midtransClient),
+		)
 
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))

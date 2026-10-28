@@ -70,6 +70,14 @@ func CreateOrder(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		if len(req.Items) != 1 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "An order must contain exactly one package",
+			})
+			return
+		}
+
 		for _, item := range req.Items {
 			if item.ItemType != "package" {
 				c.JSON(http.StatusBadRequest, gin.H{
@@ -134,15 +142,22 @@ func CreateOrder(pool *pgxpool.Pool) gin.HandlerFunc {
 		for _, item := range req.Items {
 			var itemName string
 			var unitPrice string
+			var invitationQuota int
+			var durationMonths int
 
 			err = tx.QueryRow(
 				ctx,
-				`SELECT name, price::text
+				`SELECT name, price::text, invitation_quota, duration_months
 				 FROM packages
 				 WHERE id = $1 AND status = 'active'
 				 FOR SHARE`,
 				item.ItemReferenceID,
-			).Scan(&itemName, &unitPrice)
+			).Scan(
+				&itemName,
+				&unitPrice,
+				&invitationQuota,
+				&durationMonths,
+			)
 
 			if errors.Is(err, pgx.ErrNoRows) {
 				c.JSON(http.StatusBadRequest, gin.H{
@@ -156,6 +171,15 @@ func CreateOrder(pool *pgxpool.Pool) gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"success": false,
 					"message": "Could not retrieve package",
+				})
+				return
+			}
+
+			// Paket lama yang belum memiliki durasi tidak boleh dibeli.
+			if durationMonths <= 0 {
+				c.JSON(http.StatusConflict, gin.H{
+					"success": false,
+					"message": "Package duration is not configured",
 				})
 				return
 			}
@@ -182,14 +206,17 @@ func CreateOrder(pool *pgxpool.Pool) gin.HandlerFunc {
 				ctx,
 				`INSERT INTO order_items
 					(order_id, item_type, item_reference_id,
-					 item_name, quantity, unit_price, subtotal)
-				 VALUES ($1, 'package', $2, $3, $4, $5::numeric, $6::numeric)`,
+					 item_name, quantity, unit_price, subtotal,
+					 invitation_quota_snapshot, duration_months_snapshot)
+				 VALUES ($1, 'package', $2, $3, $4, $5::numeric, $6::numeric, $7, $8)`,
 				orderID,
 				item.ItemReferenceID,
 				itemName,
 				item.Quantity,
 				unitPrice,
 				itemSubtotal,
+				invitationQuota,
+				durationMonths,
 			)
 
 			if err != nil {
@@ -240,6 +267,48 @@ func CreateOrder(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		// Buat nomor invoice untuk order ini.
+		invoiceNumber, err := generateInvoiceNumber()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Could not generate invoice number",
+			})
+			return
+		}
+
+		// Invoice dibuat dalam transaksi yang sama dengan order.
+		// Status awal invoice adalah unpaid.
+		var invoiceID int64
+
+		err = tx.QueryRow(
+			ctx,
+			`INSERT INTO invoices (
+				order_id,
+				invoice_number,
+				subtotal,
+				discount,
+				tax_amount,
+				total,
+				status
+			)
+			VALUES ($1, $2, $3::numeric, $4::numeric, 0, $5::numeric, 'unpaid')
+			RETURNING id`,
+			orderID,
+			invoiceNumber,
+			subtotal,
+			discount,
+			total,
+		).Scan(&invoiceID)
+
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Could not create invoice",
+			})
+			return
+		}
+
 		if err := tx.Commit(ctx); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
@@ -252,12 +321,14 @@ func CreateOrder(pool *pgxpool.Pool) gin.HandlerFunc {
 			"success": true,
 			"message": "Order created successfully",
 			"data": gin.H{
-				"id":           orderID,
-				"order_number": orderNumber,
-				"subtotal":     subtotal,
-				"discount":     discount,
-				"total":        total,
-				"status":       "pending",
+				"id":             orderID,
+				"order_number":   orderNumber,
+				"subtotal":       subtotal,
+				"discount":       discount,
+				"total":          total,
+				"status":         "pending",
+				"invoice_id":     invoiceID,
+				"invoice_number": invoiceNumber,
 			},
 		})
 	}
