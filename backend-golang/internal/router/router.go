@@ -11,7 +11,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engine {
+func SetupRouter(
+	pool *pgxpool.Pool,
+	jwtSecret string,
+	appEnv string,
+	googleCfg handlers.GoogleAuthConfig,
+) *gin.Engine {
 	router := gin.Default()
 
 	router.GET("/", func(c *gin.Context) {
@@ -31,12 +36,24 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 		api.POST("/auth/register", handlers.Register(pool))
 		api.POST("/auth/login", handlers.Login(pool, jwtSecret))
 
+		api.GET("/auth/google", handlers.GoogleLogin(pool, googleCfg))
+		api.GET("/auth/google/callback", handlers.GoogleCallback(pool, googleCfg))
+
 		api.POST("/auth/forgot-password", handlers.ForgotPassword(pool, appEnv))
 		api.POST("/auth/reset-password", handlers.ResetPassword(pool))
 
-		api.POST("/auth/logout", middleware.AuthRequired(pool, jwtSecret), handlers.Logout())
+		api.POST(
+			"/auth/logout",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.Logout(),
+		)
 
-		api.GET("/users/me", middleware.AuthRequired(pool, jwtSecret), handlers.GetMe(pool))
+		api.GET(
+			"/users/me",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.GetMe(pool),
+		)
+
 		api.GET(
 			"/admin/test",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -48,6 +65,7 @@ func SetupRouter(pool *pgxpool.Pool, jwtSecret string, appEnv string) *gin.Engin
 				})
 			},
 		)
+
 		api.PATCH(
 			"/users/me",
 			middleware.AuthRequired(pool, jwtSecret),

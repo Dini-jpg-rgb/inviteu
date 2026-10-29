@@ -6,6 +6,7 @@ import (
 
 	"backend-golang/internal/config"
 	"backend-golang/internal/database"
+	"backend-golang/internal/handlers"
 	"backend-golang/internal/router"
 )
 
@@ -17,12 +18,24 @@ func main() {
 		fmt.Println("Database connection failed:", err)
 		return
 	}
-
-	defer conn.Close()
+	defer pool.Close()
 
 	fmt.Println("Database connected successfully!")
 
-	r := router.SetupRouter(conn, cfg.JWTSecret, cfg.AppEnv)
+	googleCfg := handlers.GoogleAuthConfig{
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL:  cfg.GoogleRedirectURL,
+		JWTSecret:    cfg.JWTSecret,
+		AppEnv:       cfg.AppEnv,
+	}
+
+	r := router.SetupRouter(
+		pool,
+		cfg.JWTSecret,
+		cfg.AppEnv,
+		googleCfg,
+	)
 
 	fmt.Println("Invitation Backend running on http://localhost:8080")
 
