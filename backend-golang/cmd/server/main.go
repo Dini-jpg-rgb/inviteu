@@ -6,6 +6,7 @@ import (
 
 	"backend-golang/internal/config"
 	"backend-golang/internal/database"
+	"backend-golang/internal/handlers"
 	"backend-golang/internal/payment"
 	"backend-golang/internal/router"
 )
@@ -15,14 +16,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Configuration failed: ", err)
 	}
-	fmt.Printf(
-		"DEBUG DBHost=%q DBPort=%q DBUser=%q DBName=%q DBPasswordSet=%t\n",
-		cfg.DBHost,
-		cfg.DBPort,
-		cfg.DBUser,
-		cfg.DBName,
-		cfg.DBPassword != "",
-	)
 
 	pool, err := database.Connect(cfg)
 	if err != nil {
@@ -31,6 +24,14 @@ func main() {
 	defer pool.Close()
 
 	fmt.Println("Database connected successfully!")
+
+	googleCfg := handlers.GoogleAuthConfig{
+		ClientID:     cfg.GoogleClientID,
+		ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL:  cfg.GoogleRedirectURL,
+		JWTSecret:    cfg.JWTSecret,
+		AppEnv:       cfg.AppEnv,
+	}
 
 	midtransClient, err := payment.NewMidtransClient(
 		cfg.MidtransServerKey,
@@ -44,6 +45,7 @@ func main() {
 		pool,
 		cfg.JWTSecret,
 		cfg.AppEnv,
+		googleCfg,
 		midtransClient,
 	)
 

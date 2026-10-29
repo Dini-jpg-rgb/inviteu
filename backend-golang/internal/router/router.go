@@ -15,6 +15,7 @@ func SetupRouter(
 	pool *pgxpool.Pool,
 	jwtSecret string,
 	appEnv string,
+	googleCfg handlers.GoogleAuthConfig,
 	midtransClient *payment.MidtransClient,
 ) *gin.Engine {
 	router := gin.Default()
@@ -33,15 +34,33 @@ func SetupRouter(
 
 	api := router.Group("/api/v1")
 	{
+		// Authentication
 		api.POST("/auth/register", handlers.Register(pool))
 		api.POST("/auth/login", handlers.Login(pool, jwtSecret))
-
+		api.GET("/auth/google", handlers.GoogleLogin(pool, googleCfg))
+		api.GET("/auth/google/callback", handlers.GoogleCallback(pool, googleCfg))
 		api.POST("/auth/forgot-password", handlers.ForgotPassword(pool, appEnv))
 		api.POST("/auth/reset-password", handlers.ResetPassword(pool))
 
-		api.POST("/auth/logout", middleware.AuthRequired(pool, jwtSecret), handlers.Logout())
+		api.POST(
+			"/auth/logout",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.Logout(),
+		)
 
-		api.GET("/users/me", middleware.AuthRequired(pool, jwtSecret), handlers.GetMe(pool))
+		// Current user
+		api.GET(
+			"/users/me",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.GetMe(pool),
+		)
+		api.PATCH(
+			"/users/me",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.UpdateMe(pool),
+		)
+
+		// Template favorites
 		api.POST(
 			"/users/me/favorites",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -57,6 +76,8 @@ func SetupRouter(
 			middleware.AuthRequired(pool, jwtSecret),
 			handlers.DeleteTemplateFavorite(pool),
 		)
+
+		// Admin test
 		api.GET(
 			"/admin/test",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -68,39 +89,35 @@ func SetupRouter(
 				})
 			},
 		)
-		api.PATCH(
-			"/users/me",
-			middleware.AuthRequired(pool, jwtSecret),
-			handlers.UpdateMe(pool),
-		)
 
+		// Packages
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
-		// Public template detail route.
+		// Templates
+		api.GET("/templates", handlers.GetTemplates(pool))
+		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
 		api.GET("/templates/:id", handlers.GetTemplateByID(pool))
 
+		// Orders and payments
 		api.POST(
 			"/orders",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.CreateOrder(pool),
 		)
-
 		api.GET(
 			"/orders",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.GetOrders(pool),
 		)
-
 		api.GET(
 			"/orders/:id",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.GetOrderByID(pool),
 		)
-
 		api.POST(
 			"/orders/:id/payments",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -108,13 +125,13 @@ func SetupRouter(
 			handlers.CreatePayment(pool, midtransClient),
 		)
 
+		// Add-on orders and invoices
 		api.POST(
 			"/invitations/:invitation_id/addon-orders",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.CreateAddonOrder(pool),
 		)
-
 		api.GET(
 			"/invoices",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -122,19 +139,17 @@ func SetupRouter(
 			handlers.GetInvoices(pool),
 		)
 
+		// Add-ons
 		api.GET("/addons", handlers.GetAddons(pool))
 		api.GET("/addons/:id", handlers.GetAddonByID(pool))
 
-		// Public template catalog route.
-		api.GET("/templates", handlers.GetTemplates(pool))
-		// Public template category route.
-		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
-
+		// Midtrans notification callback
 		api.POST(
 			"/payments/midtrans/notification",
 			handlers.MidtransNotification(pool, midtransClient),
 		)
 
+		// Admin routes
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
 		admin.Use(middleware.RequireRole("admin"))

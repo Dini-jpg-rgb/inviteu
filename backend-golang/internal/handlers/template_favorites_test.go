@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"backend-golang/internal/handlers"
 	"backend-golang/internal/payment"
 	"backend-golang/internal/router"
 
@@ -40,7 +41,13 @@ type templateFavoritesFixture struct {
 func TestTemplateFavorites(t *testing.T) {
 	pool := templateFavoritesTestPool(t)
 	gin.SetMode(gin.TestMode)
-	engine := router.SetupRouter(pool, templateFavoritesTestJWTSecret, "test", (*payment.MidtransClient)(nil))
+	engine := router.SetupRouter(
+		pool,
+		templateFavoritesTestJWTSecret,
+		"test",
+		handlers.GoogleAuthConfig{},
+		(*payment.MidtransClient)(nil),
+	)
 
 	t.Run("authentication required on all routes", func(t *testing.T) {
 		requests := []struct {
