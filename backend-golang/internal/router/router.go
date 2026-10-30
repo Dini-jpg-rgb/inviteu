@@ -154,6 +154,13 @@ func SetupRouter(
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
 		admin.Use(middleware.RequireRole("admin"))
 
+		// Admin User Management
+		admin.GET("/users", handlers.ListUsers(pool))
+		admin.GET("/users/:id", handlers.GetUser(pool))
+		admin.POST("/users", handlers.CreateUser(pool))
+		admin.PATCH("/users/:id", handlers.UpdateUser(pool))
+		admin.PATCH("/users/:id/status", handlers.UpdateUserStatus(pool))
+
 		admin.POST("/packages", handlers.CreatePackage(pool))
 		admin.PATCH("/packages/:id", handlers.UpdatePackage(pool))
 		admin.PATCH("/packages/:id/status", handlers.UpdatePackageStatus(pool))
