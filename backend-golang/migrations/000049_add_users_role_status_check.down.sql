@@ -1,0 +1,5 @@
+ALTER TABLE users
+DROP CONSTRAINT IF EXISTS users_status_check;
+
+ALTER TABLE users
+DROP CONSTRAINT IF EXISTS users_role_check;
