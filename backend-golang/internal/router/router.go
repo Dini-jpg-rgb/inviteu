@@ -149,6 +149,26 @@ func SetupRouter(
 			handlers.MidtransNotification(pool, midtransClient),
 		)
 
+		// Invitations (Feature 3.1)
+		api.POST(
+			"/invitations",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateInvitation(pool),
+		)
+		api.GET(
+			"/invitations",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitations(pool),
+		)
+		api.GET(
+			"/invitations/:id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationByID(pool),
+		)
+
 		// Admin routes
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
