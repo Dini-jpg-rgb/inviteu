@@ -186,6 +186,12 @@ func SetupRouter(
 			middleware.RequireRole("partner"),
 			handlers.UpdateInvitationContent(pool),
 		)
+		api.POST(
+			"/invitations/:invitation_id/publish",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.PublishInvitation(pool),
+		)
 
 		// Admin routes
 		admin := api.Group("/admin")
