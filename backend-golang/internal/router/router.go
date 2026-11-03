@@ -168,6 +168,24 @@ func SetupRouter(
 			middleware.RequireRole("partner"),
 			handlers.GetInvitationByID(pool),
 		)
+		api.PATCH(
+			"/invitations/:id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitation(pool),
+		)
+		api.GET(
+			"/invitations/:id/content",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationContent(pool),
+		)
+		api.PATCH(
+			"/invitations/:id/content",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitationContent(pool),
+		)
 
 		// Admin routes
 		admin := api.Group("/admin")
