@@ -811,3 +811,259 @@ func TestPartnerRSVPs_AuthorizationAndOwnership(t *testing.T) {
 		}
 	})
 }
+
+func insertRSVPForTest(t *testing.T, pool *pgxpool.Pool, invitationID int64, name, status string, count int) (int64, int64) {
+	t.Helper()
+	var guestID int64
+	tokenBytes := make([]byte, 32)
+	_, _ = rand.Read(tokenBytes)
+	token := hex.EncodeToString(tokenBytes)
+
+	err := pool.QueryRow(context.Background(), `
+		INSERT INTO guests (invitation_id, name, unique_token)
+		VALUES ($1, $2, $3)
+		RETURNING id
+	`, invitationID, name, token).Scan(&guestID)
+	if err != nil {
+		t.Fatalf("insert test guest: %v", err)
+	}
+
+	var rsvpID int64
+	err = pool.QueryRow(context.Background(), `
+		INSERT INTO rsvps (guest_id, attendance_status, number_of_guests, message, submitted_at)
+		VALUES ($1, $2, $3, 'test message', CURRENT_TIMESTAMP)
+		RETURNING id
+	`, guestID, status, count).Scan(&rsvpID)
+	if err != nil {
+		t.Fatalf("insert test rsvp: %v", err)
+	}
+	return guestID, rsvpID
+}
+
+func TestDeleteInvitationRSVP(t *testing.T) {
+	pool := templateFavoritesTestPool(t)
+	engine := setupInvitationTestEngine(pool)
+	fixture := createRSVPFixture(t, pool)
+
+	tokenA := templateFavoritesToken(t, fixture.partnerA)
+	tokenB := templateFavoritesToken(t, fixture.partnerB)
+	designerToken := templateFavoritesToken(t, fixture.designerUser)
+
+	t.Run("sukses hapus: 200, baris guests dan rsvps hilang di DB, rsvp lain tidak terhapus", func(t *testing.T) {
+		guestID1, rsvpID1 := insertRSVPForTest(t, pool, fixture.publishedInvID, "Delete Target", "attending", 2)
+		guestID2, rsvpID2 := insertRSVPForTest(t, pool, fixture.publishedInvID, "Keep Intact", "attending", 3)
+
+		url := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.publishedInvID, rsvpID1)
+		resp := templateFavoritesRequest(engine, http.MethodDelete, url, "", tokenA)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+		}
+
+		var jsonResp struct {
+			Success bool   `json:"success"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(resp.Body.Bytes(), &jsonResp); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if !jsonResp.Success || jsonResp.Message != "RSVP deleted successfully" {
+			t.Fatalf("unexpected response: %+v", jsonResp)
+		}
+
+		// Verify in DB that guest 1 and rsvp 1 are gone
+		ctx := context.Background()
+		var countG1, countR1 int
+		_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM guests WHERE id = $1", guestID1).Scan(&countG1)
+		_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM rsvps WHERE id = $1", rsvpID1).Scan(&countR1)
+		if countG1 != 0 || countR1 != 0 {
+			t.Fatalf("expected guest and rsvp to be deleted, got guests=%d, rsvps=%d", countG1, countR1)
+		}
+
+		// Verify that guest 2 and rsvp 2 remain intact
+		var countG2, countR2 int
+		_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM guests WHERE id = $1", guestID2).Scan(&countG2)
+		_ = pool.QueryRow(ctx, "SELECT COUNT(*) FROM rsvps WHERE id = $1", rsvpID2).Scan(&countR2)
+		if countG2 != 1 || countR2 != 1 {
+			t.Fatalf("expected other guest and rsvp to remain, got guests=%d, rsvps=%d", countG2, countR2)
+		}
+	})
+
+	t.Run("rsvp milik undangan lain menghasilkan 404 dan data tetap utuh", func(t *testing.T) {
+		// Create second invitation for Partner A
+		var otherInvID int64
+		futureTime := time.Now().Add(10 * 24 * time.Hour)
+		err := pool.QueryRow(context.Background(), `
+			INSERT INTO invitations (user_id, template_id, title, slug, status, expired_at)
+			VALUES ($1, $2, $3, $4, 'published', $5)
+			RETURNING id
+		`, fixture.partnerA, fixture.templateID, fixture.marker+" Other Inv", fixture.marker+"-other-slug", &futureTime).Scan(&otherInvID)
+		if err != nil {
+			t.Fatalf("create other invitation: %v", err)
+		}
+
+		guestIDOther, rsvpIDOther := insertRSVPForTest(t, pool, otherInvID, "Other Inv Guest", "attending", 1)
+
+		// Try to delete rsvp of otherInvID using publishedInvID in URL
+		urlMismatched := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.publishedInvID, rsvpIDOther)
+		resp := templateFavoritesRequest(engine, http.MethodDelete, urlMismatched, "", tokenA)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 for mismatched invitation, got %d", resp.Code)
+		}
+
+		// Verify data in DB is untouched
+		var countG, countR int
+		_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM guests WHERE id = $1", guestIDOther).Scan(&countG)
+		_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM rsvps WHERE id = $1", rsvpIDOther).Scan(&countR)
+		if countG != 1 || countR != 1 {
+			t.Fatalf("expected other invitation data to remain untouched, got guests=%d, rsvps=%d", countG, countR)
+		}
+	})
+
+	t.Run("partner lain menghasilkan 404 dan data tetap utuh", func(t *testing.T) {
+		guestID, rsvpID := insertRSVPForTest(t, pool, fixture.publishedInvID, "Partner A Guest", "attending", 1)
+
+		url := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.publishedInvID, rsvpID)
+		resp := templateFavoritesRequest(engine, http.MethodDelete, url, "", tokenB)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 for different partner, got %d", resp.Code)
+		}
+
+		// Verify data remains
+		var countG, countR int
+		_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM guests WHERE id = $1", guestID).Scan(&countG)
+		_ = pool.QueryRow(context.Background(), "SELECT COUNT(*) FROM rsvps WHERE id = $1", rsvpID).Scan(&countR)
+		if countG != 1 || countR != 1 {
+			t.Fatalf("expected data to remain untouched for other partner request, got guests=%d, rsvps=%d", countG, countR)
+		}
+	})
+
+	t.Run("rsvp id tidak ada menghasilkan 404", func(t *testing.T) {
+		url := fmt.Sprintf("/api/v1/invitations/%d/rsvps/999999999", fixture.publishedInvID)
+		resp := templateFavoritesRequest(engine, http.MethodDelete, url, "", tokenA)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("expected 404 for non-existent rsvp id, got %d", resp.Code)
+		}
+	})
+
+	t.Run("id tidak valid atau melebihi int64 menghasilkan 400", func(t *testing.T) {
+		invalidCases := []struct {
+			path string
+		}{
+			{path: fmt.Sprintf("/api/v1/invitations/abc/rsvps/1")},
+			{path: fmt.Sprintf("/api/v1/invitations/0/rsvps/1")},
+			{path: fmt.Sprintf("/api/v1/invitations/-1/rsvps/1")},
+			{path: fmt.Sprintf("/api/v1/invitations/99999999999999999999/rsvps/1")},
+			{path: fmt.Sprintf("/api/v1/invitations/%d/rsvps/xyz", fixture.publishedInvID)},
+			{path: fmt.Sprintf("/api/v1/invitations/%d/rsvps/0", fixture.publishedInvID)},
+			{path: fmt.Sprintf("/api/v1/invitations/%d/rsvps/-1", fixture.publishedInvID)},
+			{path: fmt.Sprintf("/api/v1/invitations/%d/rsvps/99999999999999999999", fixture.publishedInvID)},
+		}
+
+		for _, tc := range invalidCases {
+			resp := templateFavoritesRequest(engine, http.MethodDelete, tc.path, "", tokenA)
+			if resp.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400 for path %s, got %d: %s", tc.path, resp.Code, resp.Body.String())
+			}
+		}
+	})
+
+	t.Run("tanpa token menghasilkan 401", func(t *testing.T) {
+		url := fmt.Sprintf("/api/v1/invitations/%d/rsvps/1", fixture.publishedInvID)
+		resp := templateFavoritesRequest(engine, http.MethodDelete, url, "", "")
+		if resp.Code != http.StatusUnauthorized {
+			t.Fatalf("expected 401 without token, got %d", resp.Code)
+		}
+	})
+
+	t.Run("role bukan partner menghasilkan 403", func(t *testing.T) {
+		url := fmt.Sprintf("/api/v1/invitations/%d/rsvps/1", fixture.publishedInvID)
+		resp := templateFavoritesRequest(engine, http.MethodDelete, url, "", designerToken)
+		if resp.Code != http.StatusForbidden {
+			t.Fatalf("expected 403 for designer role, got %d", resp.Code)
+		}
+	})
+
+	t.Run("hapus dua kali: pemanggilan kedua menghasilkan 404", func(t *testing.T) {
+		_, rsvpID := insertRSVPForTest(t, pool, fixture.publishedInvID, "Double Delete", "attending", 1)
+
+		url := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.publishedInvID, rsvpID)
+		resp1 := templateFavoritesRequest(engine, http.MethodDelete, url, "", tokenA)
+		if resp1.Code != http.StatusOK {
+			t.Fatalf("first delete expected 200, got %d", resp1.Code)
+		}
+
+		resp2 := templateFavoritesRequest(engine, http.MethodDelete, url, "", tokenA)
+		if resp2.Code != http.StatusNotFound {
+			t.Fatalf("second delete expected 404, got %d", resp2.Code)
+		}
+	})
+
+	t.Run("summary RSVP berkurang akurat setelah penghapusan", func(t *testing.T) {
+		// Clean existing rsvps on draft invitation for a clean summary test
+		_, _ = pool.Exec(context.Background(), `
+			DELETE FROM guests WHERE invitation_id = $1
+		`, fixture.draftInvID)
+
+		_, rsvpID1 := insertRSVPForTest(t, pool, fixture.draftInvID, "Summary Guest 1", "attending", 3)
+		_, _ = insertRSVPForTest(t, pool, fixture.draftInvID, "Summary Guest 2", "attending", 2)
+
+		// Check initial summary: total_responses=2, total_guests=5
+		getURL := fmt.Sprintf("/api/v1/invitations/%d/rsvps", fixture.draftInvID)
+		respGet1 := templateFavoritesRequest(engine, http.MethodGet, getURL, "", tokenA)
+		if respGet1.Code != http.StatusOK {
+			t.Fatalf("get rsvps expected 200, got %d", respGet1.Code)
+		}
+
+		var summaryResp1 struct {
+			Data struct {
+				Summary struct {
+					TotalResponses int64 `json:"total_responses"`
+					TotalGuests    int64 `json:"total_guests"`
+				} `json:"summary"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(respGet1.Body.Bytes(), &summaryResp1)
+		if summaryResp1.Data.Summary.TotalResponses != 2 || summaryResp1.Data.Summary.TotalGuests != 5 {
+			t.Fatalf("initial summary unexpected: %+v", summaryResp1.Data.Summary)
+		}
+
+		// Delete RSVP 1 (count 3)
+		delURL := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.draftInvID, rsvpID1)
+		respDel := templateFavoritesRequest(engine, http.MethodDelete, delURL, "", tokenA)
+		if respDel.Code != http.StatusOK {
+			t.Fatalf("delete rsvp expected 200, got %d", respDel.Code)
+		}
+
+		// Check updated summary: total_responses=1, total_guests=2
+		respGet2 := templateFavoritesRequest(engine, http.MethodGet, getURL, "", tokenA)
+		var summaryResp2 struct {
+			Data struct {
+				Summary struct {
+					TotalResponses int64 `json:"total_responses"`
+					TotalGuests    int64 `json:"total_guests"`
+				} `json:"summary"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(respGet2.Body.Bytes(), &summaryResp2)
+		if summaryResp2.Data.Summary.TotalResponses != 1 || summaryResp2.Data.Summary.TotalGuests != 2 {
+			t.Fatalf("updated summary unexpected: %+v", summaryResp2.Data.Summary)
+		}
+	})
+
+	t.Run("undangan status draft, published, dan expired sama-sama boleh dihapus", func(t *testing.T) {
+		_, rsvpDraft := insertRSVPForTest(t, pool, fixture.draftInvID, "Draft RSVP", "attending", 1)
+		_, rsvpExpired := insertRSVPForTest(t, pool, fixture.expiredInvID, "Expired RSVP", "not_attending", 0)
+
+		urlDraft := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.draftInvID, rsvpDraft)
+		respDraft := templateFavoritesRequest(engine, http.MethodDelete, urlDraft, "", tokenA)
+		if respDraft.Code != http.StatusOK {
+			t.Fatalf("expected 200 for draft delete, got %d: %s", respDraft.Code, respDraft.Body.String())
+		}
+
+		urlExpired := fmt.Sprintf("/api/v1/invitations/%d/rsvps/%d", fixture.expiredInvID, rsvpExpired)
+		respExpired := templateFavoritesRequest(engine, http.MethodDelete, urlExpired, "", tokenA)
+		if respExpired.Code != http.StatusOK {
+			t.Fatalf("expected 200 for expired delete, got %d: %s", respExpired.Code, respExpired.Body.String())
+		}
+	})
+}

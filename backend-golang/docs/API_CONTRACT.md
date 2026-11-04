@@ -947,3 +947,58 @@ Dokumen ini adalah draft acuan bersama. Developer A dan Developer B harus meninj
 - `summary` dihitung atas seluruh RSVP undangan dan tidak terpengaruh oleh filter `status` maupun `search`.
 - `total_guests` merupakan penjumlahan `SUM(number_of_guests)` khusus untuk tamu dengan status `"attending"`.
 - Response tidak mengekspos `unique_token`, `phone`, `email`, `category`, atau `invitation_id`.
+
+---
+
+### 10.3. Delete Invitation RSVP
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/rsvps/:rsvp_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE i.id = $id AND i.user_id = $userID`)
+
+#### Path Parameters
+
+| Parameter | Tipe | Keterangan |
+| :--- | :--- | :--- |
+| `id` | integer | ID undangan (wajib, integer positif) |
+| `rsvp_id` | integer | ID RSVP yang akan dihapus (wajib, integer positif) |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "RSVP deleted successfully"
+}
+```
+
+#### Response Error
+
+- **401 Unauthorized**: Tidak menyertakan token otentikasi atau token tidak valid (middleware).
+- **403 Forbidden**: Pengguna terautentikasi tetapi memiliki role selain `partner` (middleware).
+- **400 Bad Request**: `:id` atau `:rsvp_id` tidak valid (bukan angka positif atau melebihi kapasitas int64).
+  ```json
+  {
+    "success": false,
+    "message": "Invalid RSVP ID",
+    "errors": {
+      "rsvp_id": "rsvp id must be a positive integer"
+    }
+  }
+  ```
+- **404 Not Found**: Undangan atau RSVP tidak ditemukan, atau bukan milik partner yang sedang login.
+  ```json
+  {
+    "success": false,
+    "message": "RSVP not found"
+  }
+  ```
+
+#### Catatan Keamanan & Arsitektur
+- Urutan evaluasi: middleware otentikasi (401) dan role (403) dijalankan terlebih dahulu, dilanjutkan dengan validasi parameter ID di handler (400), lalu verifikasi keberadaan serta kepemilikan di SQL (404).
+- Menghapus RSVP dilakukan dengan menghapus baris tamu terkait (`guests`), sehingga baris `rsvps` ikut terhapus otomatis melalui `ON DELETE CASCADE` untuk mencegah baris tamu yatim (orphaned guest).
+- Baris `guest_media` milik tamu ikut terhapus (`CASCADE`), sedangkan pesan pada `guestbook_messages` milik tamu tetap ada dengan kolom `guest_id` disetel `NULL` (`SET NULL`).
+- Operasi ini bersifat permanen (*hard delete*) dan tidak dapat dibatalkan (*cannot be undone*).
+- Berlaku untuk undangan dengan status apa pun (`draft`, `published`, `expired`) selama dimiliki oleh partner yang bersangkutan.
+- Anti-enumerasi: Jika `:rsvp_id` tidak ditemukan, milik undangan lain, atau milik partner lain, backend memberikan respons seragam 404 tanpa membocorkan eksistensi data.
