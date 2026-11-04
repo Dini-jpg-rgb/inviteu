@@ -7,8 +7,8 @@ import { usePartner } from "@/context/PartnerContext";
 export default function PartnerDashboardPage() {
   const {
     activePackage,
+    activePackageDetails,
     invitations,
-    loadDemoInvitations,
     clearInvitations,
     resetPackage,
   } = usePartner();
@@ -36,17 +36,19 @@ export default function PartnerDashboardPage() {
     0
   );
 
-  const maxQuota = activePackage === "basic" ? 10 : activePackage === "pro" ? 10 : 30;
+  const maxQuota =
+    activePackageDetails?.invitationQuota ??
+    (activePackage === "basic" ? 10 : activePackage === "pro" ? 10 : 30);
 
-  // Capitalized package name
   const packageName =
-    activePackage === "basic"
+    activePackageDetails?.name ??
+    (activePackage === "basic"
       ? "Basic"
       : activePackage === "pro"
-      ? "Pro"
-      : activePackage === "premium"
-      ? "Premium"
-      : "-";
+        ? "Pro"
+        : activePackage === "premium"
+          ? "Premium"
+          : activePackage ?? "-");
 
   return (
     <div className="space-y-5 max-w-6xl">
@@ -305,20 +307,13 @@ export default function PartnerDashboardPage() {
         <div className="text-zinc-500 font-medium">
           Status Sistem: Package{" "}
           <strong className="text-zinc-800">
-            {activePackage ? activePackage.toUpperCase() : "BELUM AKTIF"}
+            {activePackage ? packageName : "BELUM AKTIF"}
           </strong>{" "}
           | Invitation: <strong className="text-zinc-800">{invitations.length}</strong>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {invitations.length === 0 ? (
-            <button
-              onClick={loadDemoInvitations}
-              className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-semibold text-[11px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-            >
-              🧪 Simulasikan 3 Undangan Klien (Gambar 3)
-            </button>
-          ) : (
+          {invitations.length > 0 && (
             <button
               onClick={clearInvitations}
               className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-300 font-medium text-[11px] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"

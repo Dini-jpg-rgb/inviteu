@@ -11,6 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+func corsMiddleware() gin.HandlerFunc {
+	allowedOrigins := map[string]struct{}{
+		"http://localhost:3000": {},
+		"http://127.0.0.1:3000": {},
+	}
+
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if _, allowed := allowedOrigins[origin]; !allowed {
+			c.Next()
+			return
+		}
+
+		c.Header("Access-Control-Allow-Origin", origin)
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key")
+		c.Header("Access-Control-Max-Age", "43200")
+		c.Header("Vary", "Origin")
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
 func SetupRouter(
 	pool *pgxpool.Pool,
 	jwtSecret string,
@@ -19,6 +47,7 @@ func SetupRouter(
 	midtransClient *payment.MidtransClient,
 ) *gin.Engine {
 	router := gin.Default()
+	router.Use(corsMiddleware())
 
 	router.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

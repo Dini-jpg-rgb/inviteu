@@ -3,6 +3,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, Partner } from "@/types/database";
+import {
+  apiPublicRequest,
+  AUTH_TOKEN_STORAGE_KEY,
+  DEMO_AUTH_ENABLED,
+  isMockAuthToken,
+} from "@/lib/api-client";
 
 export interface RegisterPartnerData {
   nama_bisnis: string;
@@ -32,6 +38,60 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 hari
 
+interface BackendLoginResponse {
+  success?: boolean;
+  message?: string;
+  data?: {
+    token?: string;
+    user?: {
+      id: string | number;
+      name: string;
+      email: string;
+      phone?: string | null;
+      role: User["role"];
+      status: User["status"];
+    };
+  };
+}
+
+const DEMO_USERS: Record<
+  string,
+  { password: string; role: "partner" | "admin" | "designer"; name: string; business?: string }
+> = {
+  "admin@gmail.com": {
+    password: "111111",
+    role: "admin",
+    name: "Superadmin InviteU",
+  },
+  "designer@gmail.com": {
+    password: "222222",
+    role: "designer",
+    name: "Lead Designer InviteU",
+  },
+  "partner@gmail.com": {
+    password: "333333",
+    role: "partner",
+    name: "Dwi Mahardika (Partner)",
+    business: "Mahardika Wedding Planner",
+  },
+  "admin@inviteu.id": {
+    password: "password123",
+    role: "admin",
+    name: "Superadmin InviteU",
+  },
+  "designer@inviteu.id": {
+    password: "password123",
+    role: "designer",
+    name: "Lead Designer InviteU",
+  },
+  "partner@inviteu.id": {
+    password: "password123",
+    role: "partner",
+    name: "Artha Wedding Partner",
+    business: "Artha Wedding & Event",
+  },
+};
+
 // Helper untuk set cookie
 function setAuthCookies(token: string, role: string, remember = false) {
   const maxAge = remember ? COOKIE_MAX_AGE : 60 * 60 * 24; // 1 hari jika tidak remember
@@ -56,9 +116,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     try {
-      const storedToken = localStorage.getItem("inviteu_token");
+      const storedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
       const storedUser = localStorage.getItem("inviteu_user");
       const storedPartner = localStorage.getItem("inviteu_partner");
+
+      if (isMockAuthToken(storedToken) && !DEMO_AUTH_ENABLED) {
+        localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+        localStorage.removeItem("inviteu_user");
+        localStorage.removeItem("inviteu_partner");
+        removeAuthCookies();
+        return;
+      }
 
       if (storedToken && storedUser) {
         setToken(storedToken);
@@ -82,81 +150,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     setIsLoading(true);
     try {
-      // 1. Coba hubungi backend jika tersedia
-      const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
-      let loginSuccess = false;
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPassword = password.trim();
+      const demoUser = DEMO_AUTH_ENABLED ? DEMO_USERS[cleanEmail] : undefined;
       let userData: User | null = null;
       let partnerData: Partner | null = null;
       let authToken = "";
 
-      if (apiUrl) {
+      if (apiUrl && !demoUser) {
         try {
-          const res = await fetch(`${apiUrl}/auth/login`, {
+          const res = await apiPublicRequest("/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password, role: selectedRole }),
+            body: JSON.stringify({ email, password }),
           });
-          if (res.ok) {
-            const json = await res.json();
-            authToken = json.token;
-            userData = json.user;
-            partnerData = json.partner;
-            loginSuccess = true;
+
+          const json = (await res.json()) as BackendLoginResponse;
+          if (!res.ok || !json.success) {
+            setIsLoading(false);
+            return {
+              success: false,
+              message: json.message || "Login ke backend gagal.",
+            };
           }
-        } catch {
-          // Backend offline, fallback ke simulasi development
+
+          const apiUser = json.data?.user;
+          if (!json.data?.token || !apiUser) {
+            setIsLoading(false);
+            return {
+              success: false,
+              message: "Respons login backend tidak memiliki token atau data pengguna.",
+            };
+          }
+
+          authToken = json.data.token;
+          userData = {
+            ...apiUser,
+            id: String(apiUser.id),
+            phone: apiUser.phone ?? undefined,
+          };
+        } catch (error) {
+          setIsLoading(false);
+          return {
+            success: false,
+            message:
+              error instanceof Error
+                ? `Tidak dapat terhubung ke backend: ${error.message}`
+                : "Tidak dapat terhubung ke backend.",
+          };
         }
       }
 
-      // 2. Fallback mode offline/development agar FE langsung bisa dites
-      if (!loginSuccess) {
+      if (!apiUrl && !DEMO_AUTH_ENABLED) {
+        setIsLoading(false);
+        return {
+          success: false,
+          message: "Backend belum dikonfigurasi dan autentikasi demo tidak aktif.",
+        };
+      }
+
+      if (demoUser || (!apiUrl && DEMO_AUTH_ENABLED)) {
         await new Promise((r) => setTimeout(r, 400)); // Simulasi network delay
 
-        const cleanEmail = email.trim().toLowerCase();
-        const cleanPassword = password.trim();
-
-        // Akun terdaftar resmi sesuai spesifikasi
-        const registeredUsers: Record<
-          string,
-          { password: string; role: "partner" | "admin" | "designer"; name: string; business?: string }
-        > = {
-          "admin@gmail.com": {
-            password: "111111",
-            role: "admin",
-            name: "Superadmin InviteU",
-          },
-          "designer@gmail.com": {
-            password: "222222",
-            role: "designer",
-            name: "Lead Designer InviteU",
-          },
-          "partner@gmail.com": {
-            password: "333333",
-            role: "partner",
-            name: "Dwi Mahardika (Partner)",
-            business: "Mahardika Wedding Planner",
-          },
-          // Dukungan akun inviteu.id sebelumnya
-          "admin@inviteu.id": {
-            password: "password123",
-            role: "admin",
-            name: "Superadmin InviteU",
-          },
-          "designer@inviteu.id": {
-            password: "password123",
-            role: "designer",
-            name: "Lead Designer InviteU",
-          },
-          "partner@inviteu.id": {
-            password: "password123",
-            role: "partner",
-            name: "Artha Wedding Partner",
-            business: "Artha Wedding & Event",
-          },
-        };
-
-        // 1. Cek apakah email terdaftar di sistem
-        const registeredUser = registeredUsers[cleanEmail];
+        const registeredUser = demoUser;
 
         if (registeredUser) {
           // Isolasi Ketat Role: Jika halaman login dikhususkan untuk role tertentu, tolak jika role tidak cocok
@@ -219,7 +276,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
           }
 
-          loginSuccess = true;
         } else {
           // Akun admin & designer wajib sudah terdaftar di sistem
           if (selectedRole === "admin" || selectedRole === "designer") {
@@ -264,7 +320,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             partnerData = null;
           }
 
-          loginSuccess = true;
         }
       }
 
@@ -275,7 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Simpan ke Cookies & LocalStorage
         setAuthCookies(authToken, userData.role, remember);
-        localStorage.setItem("inviteu_token", authToken);
+        localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, authToken);
         localStorage.setItem("inviteu_user", JSON.stringify(userData));
         if (partnerData) {
           localStorage.setItem("inviteu_partner", JSON.stringify(partnerData));
@@ -323,7 +378,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(authToken);
 
       setAuthCookies(authToken, "partner", true);
-      localStorage.setItem("inviteu_token", authToken);
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, authToken);
       localStorage.setItem("inviteu_user", JSON.stringify(newUser));
       localStorage.setItem("inviteu_partner", JSON.stringify(newPartner));
 
@@ -340,7 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPartner(null);
     setToken(null);
     removeAuthCookies();
-    localStorage.removeItem("inviteu_token");
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     localStorage.removeItem("inviteu_user");
     localStorage.removeItem("inviteu_partner");
     router.push("/login");

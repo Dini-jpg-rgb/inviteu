@@ -1,16 +1,24 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { isMockAuthToken } from "@/lib/api-client";
 
 export interface PackageTransaction {
   id: string;
   orderNumber: string;
-  packageId: "basic" | "pro" | "premium";
+  packageId: string;
   packageName: string;
   amount: string;
-  status: "Paid" | "Pending" | "Failed";
+  status: "Paid" | "Pending" | "Failed" | "Simulated";
   date: string;
   action: string;
+}
+
+export interface ActivePartnerPackage {
+  id: number;
+  name: string;
+  invitationQuota: number;
 }
 
 export interface PartnerInvitation {
@@ -27,174 +35,208 @@ export interface PartnerInvitation {
 }
 
 interface PartnerContextType {
-  activePackage: "basic" | "pro" | "premium" | null;
+  activePackage: string | null;
+  activePackageDetails: ActivePartnerPackage | null;
   transactions: PackageTransaction[];
   invitations: PartnerInvitation[];
-  buyPackage: (packageId: "basic" | "pro" | "premium") => void;
+  buyPackage: (pkg: ActivePartnerPackage & { price: string }) => void;
   resetPackage: () => void;
-  loadDemoInvitations: () => void;
   clearInvitations: () => void;
   addInvitation: (inv: Omit<PartnerInvitation, "id">) => void;
 }
 
 const PartnerContext = createContext<PartnerContextType | undefined>(undefined);
 
-// Sample demo invitations matching Image 3
-export const DEMO_INVITATIONS: PartnerInvitation[] = [
-  {
-    id: "inv-01",
-    title: "Ana and Dimas",
-    eventDate: "12 Des 2026",
-    status: "Published",
-    rsvpCount: 84,
-    rsvpSummary: { hadir: 84, tidakHadir: 8, belumMerespons: 20 },
-  },
-  {
-    id: "inv-02",
-    title: "Sari and Bayu",
-    eventDate: "20 Jan 2027",
-    status: "Draft",
-    rsvpCount: 0,
-    rsvpSummary: { hadir: 0, tidakHadir: 0, belumMerespons: 0 },
-  },
-  {
-    id: "inv-03",
-    title: "Putu and Ayu",
-    eventDate: "03 Mar 2027",
-    status: "Published",
-    rsvpCount: 12,
-    rsvpSummary: { hadir: 44, tidakHadir: 6, belumMerespons: 16 },
-  },
-];
+function getStoredValue(scope: string, key: string, legacyKey: string, isDemoSession: boolean) {
+  if (typeof window === "undefined") return null;
 
-// Sample default transactions matching Image 4
-export const DEMO_TRANSACTIONS: PackageTransaction[] = [
-  {
-    id: "tx-1",
-    orderNumber: "ORD-0001",
-    packageId: "pro",
-    packageName: "Pro",
-    amount: "Rp 50.000",
-    status: "Paid",
-    date: "02 Jan 2026",
-    action: "Detail",
-  },
-  {
-    id: "tx-2",
-    orderNumber: "ORD-0002",
-    packageId: "premium",
-    packageName: "Premium",
-    amount: "Rp 150.000",
-    status: "Pending",
-    date: "10 Okt 2026",
-    action: "Detail",
-  },
-  {
-    id: "tx-3",
-    orderNumber: "ORD-0003",
-    packageId: "basic",
-    packageName: "Basic",
-    amount: "Rp 25.000",
-    status: "Failed",
-    date: "11 Okt 2026",
-    action: "Detail",
-  },
-];
+  try {
+    return (
+      localStorage.getItem(`inviteu_${scope}_${key}`) ??
+      (isDemoSession ? localStorage.getItem(legacyKey) : null)
+    );
+  } catch (error) {
+    console.error("Error loading partner state from localStorage:", error);
+    return null;
+  }
+}
+
+function getStoredArray<T>(
+  scope: string,
+  key: string,
+  legacyKey: string,
+  isDemoSession: boolean,
+): T[] {
+  const savedValue = getStoredValue(scope, key, legacyKey, isDemoSession);
+  if (!savedValue) return [];
+
+  try {
+    const parsedValue: unknown = JSON.parse(savedValue);
+    return Array.isArray(parsedValue) ? parsedValue as T[] : [];
+  } catch (error) {
+    console.error("Error parsing partner state from localStorage:", error);
+    return [];
+  }
+}
+
+function getStoredActivePackageDetails(scope: string, isDemoSession: boolean) {
+  const savedValue = getStoredValue(
+    scope,
+    "active_package_details",
+    "inviteu_active_package_details",
+    isDemoSession,
+  );
+  if (!savedValue) return null;
+
+  try {
+    const parsedValue: unknown = JSON.parse(savedValue);
+    if (
+      typeof parsedValue === "object" &&
+      parsedValue !== null &&
+      "id" in parsedValue &&
+      typeof parsedValue.id === "number" &&
+      "name" in parsedValue &&
+      typeof parsedValue.name === "string" &&
+      "invitationQuota" in parsedValue &&
+      typeof parsedValue.invitationQuota === "number"
+    ) {
+      return {
+        id: parsedValue.id,
+        name: parsedValue.name,
+        invitationQuota: parsedValue.invitationQuota,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Error parsing active package from localStorage:", error);
+    return null;
+  }
+}
 
 export function PartnerProvider({ children }: { children: React.ReactNode }) {
-  const [activePackage, setActivePackage] = useState<"basic" | "pro" | "premium" | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem("inviteu_active_package");
-      return (saved as "basic" | "pro" | "premium") || null;
-    } catch {
-      return null;
-    }
-  });
+  const { token, user } = useAuth();
+  const isDemoSession = isMockAuthToken(token);
+  const storageScope = isDemoSession ? "demo" : `backend_${user?.id ?? "anonymous"}`;
 
-  const [transactions, setTransactions] = useState<PackageTransaction[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("inviteu_partner_transactions");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  return (
+    <PartnerStateProvider
+      key={storageScope}
+      storageScope={storageScope}
+      isDemoSession={isDemoSession}
+    >
+      {children}
+    </PartnerStateProvider>
+  );
+}
 
-  const [invitations, setInvitations] = useState<PartnerInvitation[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("inviteu_partner_invitations");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+function PartnerStateProvider({
+  children,
+  storageScope,
+  isDemoSession,
+}: {
+  children: React.ReactNode;
+  storageScope: string;
+  isDemoSession: boolean;
+}) {
+  const [activePackage, setActivePackage] = useState<string | null>(() => {
+    const savedPackage = getStoredValue(
+      storageScope,
+      "active_package",
+      "inviteu_active_package",
+      isDemoSession,
+    );
+    return savedPackage;
   });
+  const [activePackageDetails, setActivePackageDetails] =
+    useState<ActivePartnerPackage | null>(() =>
+      getStoredActivePackageDetails(storageScope, isDemoSession),
+    );
+  const [transactions, setTransactions] = useState<PackageTransaction[]>(() =>
+    getStoredArray(
+      storageScope,
+      "partner_transactions",
+      "inviteu_partner_transactions",
+      isDemoSession,
+    ),
+  );
+  const [invitations, setInvitations] = useState<PartnerInvitation[]>(() =>
+    getStoredArray(
+      storageScope,
+      "partner_invitations",
+      "inviteu_partner_invitations",
+      isDemoSession,
+    ),
+  );
 
-  // Save changes to localStorage
   useEffect(() => {
     try {
+      const activePackageKey = `inviteu_${storageScope}_active_package`;
       if (activePackage) {
-        localStorage.setItem("inviteu_active_package", activePackage);
+        localStorage.setItem(activePackageKey, activePackage);
       } else {
-        localStorage.removeItem("inviteu_active_package");
+        localStorage.removeItem(activePackageKey);
       }
-      localStorage.setItem("inviteu_partner_transactions", JSON.stringify(transactions));
-      localStorage.setItem("inviteu_partner_invitations", JSON.stringify(invitations));
-    } catch (e) {
-      console.error("Error saving partner state to localStorage:", e);
+      const activePackageDetailsKey = `inviteu_${storageScope}_active_package_details`;
+      if (activePackageDetails) {
+        localStorage.setItem(activePackageDetailsKey, JSON.stringify(activePackageDetails));
+      } else {
+        localStorage.removeItem(activePackageDetailsKey);
+      }
+      localStorage.setItem(
+        `inviteu_${storageScope}_partner_transactions`,
+        JSON.stringify(transactions),
+      );
+      localStorage.setItem(
+        `inviteu_${storageScope}_partner_invitations`,
+        JSON.stringify(invitations),
+      );
+    } catch (error) {
+      console.error("Error saving partner state to localStorage:", error);
     }
-  }, [activePackage, transactions, invitations]);
+  }, [activePackage, activePackageDetails, invitations, storageScope, transactions]);
 
-  // Handler to purchase / activate package
-  const buyPackage = (packageId: "basic" | "pro" | "premium") => {
-    setActivePackage(packageId);
+  const buyPackage = (pkg: ActivePartnerPackage & { price: string }) => {
+    setActivePackage(String(pkg.id));
+    setActivePackageDetails({
+      id: pkg.id,
+      name: pkg.name,
+      invitationQuota: pkg.invitationQuota,
+    });
 
-    const priceMap: Record<string, string> = {
-      basic: "Rp 150.000",
-      pro: "Rp 350.000",
-      premium: "Rp 750.000",
-    };
-
-    const nameMap: Record<string, string> = {
-      basic: "Basic",
-      pro: "Pro",
-      premium: "Premium",
-    };
-
-    // If transactions are currently empty, initialize with Image 4 demo set (with Pro as latest)
-    // or prepend this new order
     const newTx: PackageTransaction = {
       id: `tx-${Date.now()}`,
       orderNumber: `ORD-000${transactions.length + 1}`,
-      packageId,
-      packageName: nameMap[packageId] || "Pro",
-      amount: priceMap[packageId] || "Rp 350.000",
-      status: "Paid",
-      date: "19 Okt 2026",
+      packageId: String(pkg.id),
+      packageName: pkg.name,
+      amount: new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      }).format(Number(pkg.price)),
+      status: "Simulated",
+      date: new Intl.DateTimeFormat("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(new Date()),
       action: "Detail",
     };
 
-    if (transactions.length === 0) {
-      // Populated with demo transactions matching Image 4
-      setTransactions(DEMO_TRANSACTIONS);
-    } else {
-      setTransactions([newTx, ...transactions]);
-    }
+    setTransactions([newTx, ...transactions]);
   };
 
   const resetPackage = () => {
     setActivePackage(null);
+    setActivePackageDetails(null);
     setTransactions([]);
-    setInvitations([]);
-    localStorage.removeItem("inviteu_active_package");
-    localStorage.removeItem("inviteu_partner_transactions");
-    localStorage.removeItem("inviteu_partner_invitations");
-  };
-
-  const loadDemoInvitations = () => {
-    setInvitations(DEMO_INVITATIONS);
+    localStorage.removeItem(`inviteu_${storageScope}_active_package`);
+    localStorage.removeItem(`inviteu_${storageScope}_active_package_details`);
+    localStorage.removeItem(`inviteu_${storageScope}_partner_transactions`);
+    if (isDemoSession) {
+      localStorage.removeItem("inviteu_active_package");
+      localStorage.removeItem("inviteu_active_package_details");
+      localStorage.removeItem("inviteu_partner_transactions");
+    }
   };
 
   const clearInvitations = () => {
@@ -213,11 +255,11 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
     <PartnerContext.Provider
       value={{
         activePackage,
+        activePackageDetails,
         transactions,
         invitations,
         buyPackage,
         resetPackage,
-        loadDemoInvitations,
         clearInvitations,
         addInvitation,
       }}
