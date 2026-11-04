@@ -823,3 +823,127 @@ Sebuah fitur dianggap selesai apabila:
 ## 9. Status Persetujuan
 
 Dokumen ini adalah draft acuan bersama. Developer A dan Developer B harus meninjau pembagian endpoint, format response, autentikasi, dan aturan integrasi sebelum kontrak dianggap final.
+
+## 10. Modul RSVP
+
+### 10.1. Submit Public RSVP
+
+- **Method**: `POST`
+- **Path**: `/api/v1/public/invitations/:slug/rsvp`
+- **Autentikasi**: Publik (tanpa token autentikasi)
+- **Ukuran Body**: Maksimum 64 KB (dibatasi via `http.MaxBytesReader`)
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `name` | string | Ya | Nama tamu, di-trim, 1–255 karakter |
+| `attendance_status` | string | Ya | Status kehadiran: `"attending"` atau `"not_attending"` |
+| `number_of_guests` | integer | Ya | Jika `attending`: wajib 1–10. Jika `not_attending`: wajib 0 |
+| `message` | string | Tidak | Ucapan/pesan tamu, di-trim, maksimum 1000 karakter |
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "RSVP submitted successfully",
+  "data": {
+    "attendance_status": "attending",
+    "number_of_guests": 2,
+    "message": "Selamat berbahagia!",
+    "submitted_at": "2026-11-04T15:30:00Z"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request** (Validasi input / body gagal):
+  ```json
+  {
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+      "attendance_status": "attendance_status must be either 'attending' or 'not_attending'"
+    }
+  }
+  ```
+- **404 Not Found** (Slug tidak ditemukan, undangan berstatus draft, atau undangan expired):
+  ```json
+  {
+    "success": false,
+    "message": "Invitation not found"
+  }
+  ```
+
+#### Catatan Keamanan & Arsitektur
+- Validasi body dijalankan sebelum query database.
+- Respons 404 seragam untuk slug tidak ditemukan, draft, atau expired (anti-enumerasi).
+- Setiap pengiriman form membuat satu record tamu baru (`guests`) dengan `unique_token` acak (32 byte hex via `crypto/rand`) dan satu record `rsvps` dalam satu transaksi database atomik.
+- Token tidak pernah dikembalikan ke client maupun dicatat ke log aplikasi.
+- Backend menyimpan `name` dan `message` apa adanya tanpa HTML sanitization; escaping saat render adalah tanggung jawab frontend.
+- Endpoint publik belum memiliki rate limiting dan rawan spam (setiap submit membuat baris tamu); koordinasi dibutuhkan dengan koordinator backend (Catur).
+
+---
+
+### 10.2. Get Invitation RSVPs (Dashboard Partner)
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/rsvps`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE id = $1 AND user_id = $2`)
+
+#### Query Parameters
+
+| Parameter | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | `1` | Nomor halaman (minimal 1) |
+| `limit` | integer | `12` | Jumlah per halaman (maksimum 50; nilai > 50 dipotong ke 50) |
+| `status` | string | - | Filter kehadiran: `"attending"` atau `"not_attending"` |
+| `search` | string | - | Pencarian nama tamu (case-insensitive ILIKE, maksimum 100 karakter) |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "RSVP list retrieved successfully",
+  "data": {
+    "summary": {
+      "total_responses": 3,
+      "attending_count": 2,
+      "not_attending_count": 1,
+      "total_guests": 5
+    },
+    "rsvps": [
+      {
+        "id": 142,
+        "name": "Budi Santoso",
+        "attendance_status": "attending",
+        "number_of_guests": 2,
+        "message": "Selamat berbahagia!",
+        "submitted_at": "2026-11-04T15:30:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 3,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: ID undangan tidak valid, filter `status` tidak valid, atau `search` > 100 karakter.
+- **401 Unauthorized**: Tidak menyertakan token otentikasi atau token tidak valid.
+- **403 Forbidden**: Pengguna terautentikasi tetapi memiliki role selain `partner`.
+- **404 Not Found**: Undangan tidak ditemukan atau bukan milik partner yang sedang login.
+
+#### Catatan Keamanan & Arsitektur
+- `summary` dihitung atas seluruh RSVP undangan dan tidak terpengaruh oleh filter `status` maupun `search`.
+- `total_guests` merupakan penjumlahan `SUM(number_of_guests)` khusus untuk tamu dengan status `"attending"`.
+- Response tidak mengekspos `unique_token`, `phone`, `email`, `category`, atau `invitation_id`.

@@ -204,6 +204,15 @@ func SetupRouter(
 			middleware.RequireRole("partner"),
 			handlers.PublishInvitation(pool),
 		)
+		api.GET(
+			"/invitations/:id/rsvps",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationRSVPs(pool),
+		)
+
+		// Public RSVP
+		api.POST("/public/invitations/:slug/rsvp", handlers.SubmitPublicRSVP(pool))
 
 		// Admin routes
 		admin := api.Group("/admin")
