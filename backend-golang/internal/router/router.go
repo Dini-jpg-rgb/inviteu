@@ -192,6 +192,12 @@ func SetupRouter(
 			middleware.RequireRole("partner"),
 			handlers.PreviewInvitation(pool),
 		)
+		api.GET(
+			"/invitations/:id/versions",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationVersions(pool),
+		)
 		api.POST(
 			"/invitations/:invitation_id/publish",
 			middleware.AuthRequired(pool, jwtSecret),
