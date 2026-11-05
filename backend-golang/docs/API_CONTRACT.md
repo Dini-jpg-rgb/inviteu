@@ -1317,3 +1317,252 @@ Field lain dalam payload (termasuk status) diabaikan secara ketat.
 - **Sanitasi HTML & Escaping**: Pesan disimpan apa adanya dalam representasi UTF-8. Sanitasi XSS menjadi tanggung jawab renderer frontend sebelum dimasukkan ke dalam DOM.
 - **Risiko Tanpa Rate Limiting**: Tidak adanya rate limiter pada endpoint publik berisiko menimbulkan spam pengiriman ucapan. Default status `'pending'` berfungsi sebagai mitigasi awal agar spam tidak langsung tampil ke publik. Koordinasi lebih lanjut dengan Catur diperlukan untuk menerapkan IP rate limiting di API Gateway.
 
+---
+
+## 13. Invitation Gifts
+
+Modul Invitation Gifts memfasilitasi partner pengelola undangan untuk menambahkan dan mengelola informasi hadiah digital (transfer bank, e-wallet, kado fisik, atau opsi lainnya) serta menyediakan endpoint publik terpisah bagi para tamu untuk melihat informasi hadiah yang aktif.
+
+### 13.1. Get Partner Invitation Gifts
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/gifts`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE i.id = $id AND i.user_id = $userID`). Berlaku untuk semua status undangan (`draft`, `published`, `expired`).
+- **Urutan**: `sort_order ASC, id ASC`.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation gifts retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "gift_type": "bank_transfer",
+      "provider_name": "BCA",
+      "account_name": "Romeo Montague",
+      "account_number": "1234567890",
+      "wallet_identifier": null,
+      "instructions": null,
+      "sort_order": 0,
+      "is_active": true,
+      "created_at": "2026-11-05T10:00:00Z",
+      "updated_at": "2026-11-05T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 13.2. Create Partner Invitation Gift
+
+- **Method**: `POST`
+- **Path**: `/api/v1/invitations/:id/gifts`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan. Status undangan apa pun boleh ditambahkan hadiah (`draft`, `published`, `expired`).
+- **Body Limit**: Maksimal 64 KB (`http.MaxBytesReader`). Field lain di luar spesifikasi diabaikan.
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `gift_type` | string | Ya | Whitelist: `bank_transfer`, `e_wallet`, `physical_gift`, `other` |
+| `provider_name` | string | Bersyarat | Maks 150 rune. Wajib untuk `bank_transfer` dan `e_wallet` |
+| `account_name` | string | Bersyarat | Maks 255 rune. Wajib untuk `bank_transfer` dan `e_wallet` |
+| `account_number` | string | Bersyarat | Maks 255 rune. Format `^[0-9 \-+]+$` (min 1 digit). Wajib untuk `bank_transfer`. Alternatif wajib untuk `e_wallet` |
+| `wallet_identifier` | string | Bersyarat | Maks 255 rune. Format `^[0-9 \-+]+$` (min 1 digit). Alternatif wajib untuk `e_wallet` bila `account_number` tidak diisi |
+| `instructions` | string | Bersyarat | Maks 2000 rune. Wajib untuk `physical_gift` dan `other` |
+| `sort_order` | integer | Tidak | Default `0`. Harus `>= 0` |
+| `is_active` | boolean | Tidak | Default `true` |
+
+*Catatan Sanitasi String*: Semua string dilakukan `TrimSpace`. String kosong setelah trim disimpan sebagai `NULL`.
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Invitation gift created successfully",
+  "data": {
+    "id": 1,
+    "gift_type": "bank_transfer",
+    "provider_name": "BCA",
+    "account_name": "Romeo Montague",
+    "account_number": "1234567890",
+    "wallet_identifier": null,
+    "instructions": null,
+    "sort_order": 0,
+    "is_active": true,
+    "created_at": "2026-11-05T10:00:00Z",
+    "updated_at": "2026-11-05T10:00:00Z"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: Validasi gagal (tipe tidak dikenal, format nomor tidak sah, field wajib kosong, teks terlalu panjang, body bukan JSON / > 64KB).
+- **404 Not Found**: Undangan tidak ditemukan atau bukan milik partner (`"message": "Invitation not found"`).
+- **409 Conflict**: Batas kuota 10 hadiah per undangan telah tercapai.
+  ```json
+  {
+    "success": false,
+    "message": "Maximum number of gifts reached",
+    "errors": {
+      "gifts": "gift_limit_reached"
+    }
+  }
+  ```
+
+---
+
+### 13.3. Update Partner Invitation Gift (Partial Update)
+
+- **Method**: `PATCH`
+- **Path**: `/api/v1/invitations/:id/gifts/:gift_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+- **Body Limit**: Maksimal 64 KB. Body kosong atau tanpa field yang dapat diupdate mengembalikan `400 Bad Request`.
+- **Merge Validation**: Data baru digabungkan (*merged*) dengan data yang ada di database di bawah kunci baris `FOR UPDATE`. Validasi kelengkapan aturan tipe dilakukan terhadap hasil akhir penggabungan (*merged state*).
+- Menghapus field opsional: Kirimkan nilai `""` atau `null`.
+
+#### Request Body (Contoh)
+
+```json
+{
+  "account_name": "Romeo & Juliet",
+  "is_active": false
+}
+```
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation gift updated successfully",
+  "data": {
+    "id": 1,
+    "gift_type": "bank_transfer",
+    "provider_name": "BCA",
+    "account_name": "Romeo & Juliet",
+    "account_number": "1234567890",
+    "wallet_identifier": null,
+    "instructions": null,
+    "sort_order": 0,
+    "is_active": false,
+    "created_at": "2026-11-05T10:00:00Z",
+    "updated_at": "2026-11-05T10:05:00Z"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: Validasi gagal atas data hasil merge (misal mengubah `gift_type` ke `bank_transfer` padahal `account_number` belum ada / di-null-kan).
+- **404 Not Found**: Hadiah atau undangan tidak ditemukan / bukan milik partner (`"message": "Gift not found"`).
+
+---
+
+### 13.4. Delete Partner Invitation Gift
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/gifts/:gift_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+- Bersifat permanen (*hard delete*). Pemanggilan kedua mengembalikan 404.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Gift deleted successfully"
+}
+```
+
+---
+
+### 13.5. Get Public Invitation Gifts
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug/gifts`
+- **Autentikasi**: Tidak ada (endpoint publik).
+- **Otorisasi**: Hanya undangan berstatus `'published'` dan belum expired (`expired_at IS NULL OR expired_at > CURRENT_TIMESTAMP`).
+- **Filter**: Hanya baris aktif (`is_active = TRUE`), diurutkan `sort_order ASC, id ASC`.
+- **Privasi**: Dilarang menampilkan `id`, `invitation_id`, `is_active`, `created_at`, `updated_at`, maupun identitas partner.
+
+#### Response Headers
+
+- **200 OK**: `Cache-Control: public, max-age=60`
+- **404 Not Found**: `Cache-Control: no-store`
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation gifts retrieved successfully",
+  "data": {
+    "gifts": [
+      {
+        "gift_type": "bank_transfer",
+        "provider_name": "BCA",
+        "account_name": "Romeo Montague",
+        "account_number": "1234567890",
+        "wallet_identifier": null,
+        "instructions": null,
+        "sort_order": 0
+      }
+    ]
+  }
+}
+```
+
+*Catatan*: Bila undangan tidak memiliki hadiah aktif, response mengembalikan 200 OK dengan `"gifts": []`.
+
+#### Response 404 Not Found
+
+Untuk slug yang tidak valid, tidak ditemukan, berstatus `'draft'`, atau `'expired'`:
+
+```json
+{
+  "success": false,
+  "message": "Invitation not found"
+}
+```
+
+---
+
+### 13.6. Catatan Keamanan & Arsitektur Invitation Gifts
+
+1. **Aturan Wajib per Tipe Hadiah**:
+   - `bank_transfer`: Wajib `provider_name`, `account_name`, `account_number`.
+   - `e_wallet`: Wajib `provider_name`, `account_name`, dan minimal salah satu dari `wallet_identifier` atau `account_number`.
+   - `physical_gift`: Wajib `instructions`.
+   - `other`: Wajib `instructions`.
+2. **Format Nomor Ketat**:
+   - `account_number` dan `wallet_identifier` divalidasi dengan regex `^[0-9 \-+]+$` dan harus mengandung minimal satu digit angka (karakter huruf atau simbol berbahaya ditolak).
+3. **Batas Maksimal 10 Hadiah & Transaksi Konkuren**:
+   - Batas maksimal 10 hadiah per undangan mencakup seluruh baris (baik aktif maupun nonaktif).
+   - Validasi batas 10 dilakukan di dalam transaksi dengan `SELECT ... FROM invitations WHERE id = $1 AND user_id = $2 FOR UPDATE` untuk mengunci baris undangan, mencegah *race condition* penambahan hadiah konkuren melampaui 10. Jika sudah 10, mengembalikan HTTP 409 Conflict dengan error `{"gifts":"gift_limit_reached"}`.
+4. **Fleksibilitas Status Undangan untuk Partner**:
+   - Partner diizinkan membuat, mengubah, atau menghapus hadiah pada undangan berstatus apa pun (`draft`, `published`, `expired`).
+5. **Respon Error Seragam (404 Uniform)**:
+   - Endpoint partner mengembalikan pesan seragam `"Invitation not found"` atau `"Gift not found"` tanpa membocorkan eksistensi data milik partner lain.
+   - Endpoint publik mengembalikan pesan seragam `"Invitation not found"` dengan header `Cache-Control: no-store` untuk slug yang tidak ada, draft, maupun expired.
+6. **Perilaku Cache Publik**:
+   - Endpoint publik menyertakan header `Cache-Control: public, max-age=60`. Perubahan nomor rekening atau status hadiah oleh partner dapat memerlukan waktu propagasi hingga 60 detik sebelum tampil di browser tamu/CDN edge cache.
+7. **Penundaan Fitur QRIS & Gambar**:
+   - QRIS dinamis maupun statis melalui upload gambar ditunda ke rilis berikutnya. Tidak ada relasi `storage_files`, endpoint upload, atau migrasi database baru pada fase ini.
+8. **Sanitasi HTML & Escaping**:
+   - Data teks (instruksi, nama pemilik rekening, dsb.) disimpan apa adanya dalam encoding UTF-8. Renderer frontend bertanggung jawab melakukan HTML-escaping untuk mencegah XSS.
+9. **Kerahasiaan Data & Audit Log**:
+   - Nomor rekening, nomor e-wallet, nama pemilik rekening, dan instruksi dilarang dicatat ke dalam log server backend (`log.Printf`).
+10. **Risiko Scraping Tanpa Rate Limiting**:
+    - Endpoint publik `GET /api/v1/public/invitations/:slug/gifts` belum dilengkapi rate limiter. Terdapat potensi scraping nomor rekening/e-wallet oleh bot. Rekomendasi mitigasi ke Catur adalah penerapan rate limiter di API Gateway / Cloudflare WAF.
+
+
