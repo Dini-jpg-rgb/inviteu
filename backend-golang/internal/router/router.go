@@ -210,6 +210,12 @@ func SetupRouter(
 			middleware.RequireRole("partner"),
 			handlers.GetInvitationRSVPs(pool),
 		)
+		api.DELETE(
+			"/invitations/:id/rsvps/:rsvp_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.DeleteInvitationRSVP(pool),
+		)
 
 		// Public RSVP
 		api.POST("/public/invitations/:slug/rsvp", handlers.SubmitPublicRSVP(pool))

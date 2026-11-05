@@ -481,3 +481,73 @@ func escapeLikePattern(s string) string {
 	s = strings.ReplaceAll(s, `_`, `\_`)
 	return s
 }
+
+// DeleteInvitationRSVP deletes a specific RSVP and its associated guest record for partner owners.
+func DeleteInvitationRSVP(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idParam := strings.TrimSpace(c.Param("id"))
+		invitationID, err := strconv.ParseInt(idParam, 10, 64)
+		if err != nil || invitationID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Invalid invitation ID",
+				"errors": gin.H{
+					"id": "invitation id must be a positive integer",
+				},
+			})
+			return
+		}
+
+		rsvpIDParam := strings.TrimSpace(c.Param("rsvp_id"))
+		rsvpID, err := strconv.ParseInt(rsvpIDParam, 10, 64)
+		if err != nil || rsvpID <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "Invalid RSVP ID",
+				"errors": gin.H{
+					"rsvp_id": "rsvp id must be a positive integer",
+				},
+			})
+			return
+		}
+
+		userID, ok := invitationUserID(c)
+		if !ok {
+			return
+		}
+
+		tag, err := pool.Exec(
+			c.Request.Context(),
+			`DELETE FROM guests USING rsvps r, invitations i
+			 WHERE guests.id = r.guest_id
+			   AND r.id = $1
+			   AND guests.invitation_id = $2
+			   AND i.id = $2
+			   AND i.user_id = $3`,
+			rsvpID,
+			invitationID,
+			userID,
+		)
+		if err != nil {
+			log.Printf("DeleteInvitationRSVP: exec: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Could not delete RSVP",
+			})
+			return
+		}
+
+		if tag.RowsAffected() == 0 {
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"message": "RSVP not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "RSVP deleted successfully",
+		})
+	}
+}
