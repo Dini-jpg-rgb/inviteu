@@ -1002,3 +1002,99 @@ Dokumen ini adalah draft acuan bersama. Developer A dan Developer B harus meninj
 - Operasi ini bersifat permanen (*hard delete*) dan tidak dapat dibatalkan (*cannot be undone*).
 - Berlaku untuk undangan dengan status apa pun (`draft`, `published`, `expired`) selama dimiliki oleh partner yang bersangkutan.
 - Anti-enumerasi: Jika `:rsvp_id` tidak ditemukan, milik undangan lain, atau milik partner lain, backend memberikan respons seragam 404 tanpa membocorkan eksistensi data.
+
+---
+
+## 11. Public Invitation
+
+### 11.1. Get Public Invitation Content
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug`
+- **Autentikasi**: Tidak ada (endpoint publik tanpa login)
+- **Otorisasi**: Publik untuk undangan berstatus `'published'` dan belum kedaluwarsa (`expired_at IS NULL` atau di masa depan)
+
+#### Path Parameters
+
+| Parameter | Tipe | Keterangan |
+| :--- | :--- | :--- |
+| `slug` | string | Slug unik undangan yang telah dipublikasikan |
+
+#### Response Headers
+
+- **200 OK**: `Cache-Control: public, max-age=60`
+- **404 Not Found**: `Cache-Control: no-store`
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation retrieved successfully",
+  "data": {
+    "invitation": {
+      "title": "The Wedding of Romeo & Juliet",
+      "slug": "romeo-juliet",
+      "published_at": "2026-11-05T10:00:00Z"
+    },
+    "template": {
+      "name": "Elegance Floral",
+      "slug": "elegance-floral"
+    },
+    "event": {
+      "name": "Akad & Resepsi",
+      "date": "2026-12-31",
+      "start_time": "10:00:00",
+      "end_time": "14:00:00",
+      "location": "Grand Ballroom Hotel Mulia",
+      "address": "Jl. Asia Afrika, Senayan, Jakarta",
+      "maps_url": "https://maps.google.com/?q=-6.215,106.798",
+      "description": "Mohon hadir 15 menit sebelum acara dimulai."
+    },
+    "sections": [
+      {
+        "id": 1,
+        "name": "Cover",
+        "type": "cover",
+        "sort_order": 10,
+        "settings": {
+          "theme": "light"
+        },
+        "fields": [
+          {
+            "id": 1,
+            "field_key": "bride_name",
+            "label": "Nama Mempelai Wanita",
+            "field_type": "text",
+            "value": "Juliet",
+            "sort_order": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### Response Error (404 Seragam)
+
+Semua skenario kegagalan menghasilkan status 404 dan body seragam berikut tanpa membocorkan eksistensi maupun status internal data:
+- Slug tidak ditemukan
+- Undangan masih berstatus `'draft'`
+- Undangan telah kedaluwarsa (`expired_at <= CURRENT_TIMESTAMP`)
+- Slug tidak valid (kosong atau melebihi 255 karakter)
+- Anomali data internal (tidak ada event terasosiasi atau versi terbit tidak valid)
+
+```json
+{
+  "success": false,
+  "message": "Invitation not found"
+}
+```
+
+#### Catatan Keamanan, Performa & Arsitektur
+- **Nilai Efektif**: Nilai setiap field diambil dari konten versi yang dipublikasikan (`invitations.published_version_id`). Jika nilai konten kosong atau hanya whitespace, backend otomatis menggunakan fallback ke `template_fields.default_value`.
+- **Informasi yang Dikecualikan**: Response secara ketat tidak mengekspos data internal partner (`user_id`, email, profile), data paket/kuota, ID internal (`invitation_id`, `version_id`, `content_id`), status draft, readiness, maupun `default_value` mentah dan `validation_rules`.
+- **Caching**: Respons 200 dilengkapi header `Cache-Control: public, max-age=60` guna meredam lonjakan beban database saat undangan dibuka oleh banyak tamu secara simultan. Respons 404 menggunakan `Cache-Control: no-store`.
+- **Escaping HTML & Keamanan XSS**: Nilai konten partner dikirimkan apa adanya dalam representasi string JSON UTF-8. Sanitasi XSS dan escaping HTML adalah tanggung jawab frontend saat me-render nilai ke Document Object Model (DOM).
+- **Risiko Tanpa Rate Limiting**: Endpoint publik ini belum memiliki mekanisme rate limiting di tingkat backend Go. Risiko yang ada mencakup potensi web scraping massal atau automated denial-of-service (DoS). Diperlukan koordinasi lebih lanjut dengan Catur untuk penambahan middleware rate limiting (misalnya token bucket / Redis limiter) pada level API gateway atau reverse proxy.
