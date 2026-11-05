@@ -217,8 +217,9 @@ func SetupRouter(
 			handlers.DeleteInvitationRSVP(pool),
 		)
 
-		// Public RSVP
+		// Public RSVP & Invitation
 		api.POST("/public/invitations/:slug/rsvp", handlers.SubmitPublicRSVP(pool))
+		api.GET("/public/invitations/:slug", handlers.GetPublicInvitation(pool))
 
 		// Admin routes
 		admin := api.Group("/admin")
