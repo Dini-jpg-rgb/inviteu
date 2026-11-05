@@ -1098,3 +1098,222 @@ Semua skenario kegagalan menghasilkan status 404 dan body seragam berikut tanpa 
 - **Caching**: Respons 200 dilengkapi header `Cache-Control: public, max-age=60` guna meredam lonjakan beban database saat undangan dibuka oleh banyak tamu secara simultan. Respons 404 menggunakan `Cache-Control: no-store`.
 - **Escaping HTML & Keamanan XSS**: Nilai konten partner dikirimkan apa adanya dalam representasi string JSON UTF-8. Sanitasi XSS dan escaping HTML adalah tanggung jawab frontend saat me-render nilai ke Document Object Model (DOM).
 - **Risiko Tanpa Rate Limiting**: Endpoint publik ini belum memiliki mekanisme rate limiting di tingkat backend Go. Risiko yang ada mencakup potensi web scraping massal atau automated denial-of-service (DoS). Diperlukan koordinasi lebih lanjut dengan Catur untuk penambahan middleware rate limiting (misalnya token bucket / Redis limiter) pada level API gateway atau reverse proxy.
+
+---
+
+## 12. Guestbook
+
+Modul Guestbook memfasilitasi tamu untuk mengirimkan doa dan ucapan pada undangan pernikahan serta menyediakan antarmuka moderasi bagi partner pemilik undangan.
+
+### 12.1. Submit Public Guestbook Message
+
+- **Method**: `POST`
+- **Path**: `/api/v1/public/invitations/:slug/guestbook`
+- **Autentikasi**: Tidak ada (endpoint publik)
+- **Body Limit**: Maksimal 64 KB (`http.MaxBytesReader`)
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `name` | string | Ya | Nama tamu (1 - 255 karakter rune, whitespace di-trim) |
+| `message` | string | Ya | Isi ucapan/doa (1 - 1000 karakter rune, whitespace di-trim) |
+
+Field lain dalam payload (termasuk status) diabaikan secara ketat.
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Guestbook message submitted successfully and is awaiting moderation",
+  "data": {
+    "status": "pending"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: Validasi gagal (nama/pesan kosong atau melebihi batas panjang, body rusak / >64KB).
+  ```json
+  {
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+      "name": "name is required",
+      "message": "message must not exceed 1000 characters"
+    }
+  }
+  ```
+- **404 Not Found**: Undangan tidak ditemukan, masih berstatus `'draft'`, atau telah kedaluwarsa (`expired_at <= CURRENT_TIMESTAMP`). Header: `Cache-Control: no-store`.
+  ```json
+  {
+    "success": false,
+    "message": "Invitation not found"
+  }
+  ```
+
+---
+
+### 12.2. Get Public Guestbook Messages
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug/guestbook`
+- **Autentikasi**: Tidak ada (endpoint publik)
+- **Otorisasi**: Hanya menampilkan pesan dengan status `'approved'` dari undangan berstatus `'published'` dan belum expired.
+
+#### Query Parameters
+
+| Parameter | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | `1` | Nomor halaman (minimal 1) |
+| `limit` | integer | `12` | Jumlah item per halaman (maksimal 50, kelebihan otomatis dipotong ke 50) |
+
+#### Response Headers
+
+- **200 OK**: `Cache-Control: public, max-age=60`
+- **404 Not Found**: `Cache-Control: no-store`
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Guestbook messages retrieved successfully",
+  "data": {
+    "messages": [
+      {
+        "guest_name": "Budi Santoso",
+        "message": "Selamat menempuh hidup baru Romeo & Juliet!",
+        "created_at": "2026-11-05T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+*Catatan*: Dilarang mengekspos ID pesan, `guest_id`, `invitation_id`, `moderated_by`, `moderated_at`, maupun `status`.
+
+---
+
+### 12.3. Get Partner Guestbook Messages
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/guestbook`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE i.id = $id AND i.user_id = $userID`). Berlaku untuk semua status undangan (`draft`, `published`, `expired`).
+
+#### Query Parameters
+
+| Parameter | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `status` | string | - | Filter status opsional: `pending`, `approved`, `rejected`, `hidden`. Nilai lain ditolak 400. |
+| `page` | integer | `1` | Nomor halaman (minimal 1) |
+| `limit` | integer | `12` | Jumlah item per halaman (maksimal dipotong ke 50) |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Guestbook messages retrieved successfully",
+  "data": {
+    "summary": {
+      "total": 10,
+      "pending": 5,
+      "approved": 3,
+      "rejected": 1,
+      "hidden": 1
+    },
+    "messages": [
+      {
+        "id": 101,
+        "guest_name": "Budi Santoso",
+        "message": "Selamat menempuh hidup baru!",
+        "status": "pending",
+        "moderated_at": null,
+        "created_at": "2026-11-05T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 10,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+*Catatan*: `summary` dihitung atas seluruh pesan undangan tersebut dan tidak dipengaruhi oleh query parameter `status`.
+
+---
+
+### 12.4. Update Guestbook Message Status (Moderate)
+
+- **Method**: `PATCH`
+- **Path**: `/api/v1/invitations/:id/guestbook/:message_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+
+#### Request Body
+
+```json
+{
+  "status": "approved"
+}
+```
+*Nilai status yang sah*: `"pending"`, `"approved"`, `"rejected"`, `"hidden"`.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Guestbook message status updated successfully",
+  "data": {
+    "id": 101,
+    "guest_name": "Budi Santoso",
+    "message": "Selamat menempuh hidup baru!",
+    "status": "approved",
+    "moderated_at": "2026-11-05T11:00:00Z",
+    "created_at": "2026-11-05T10:00:00Z"
+  }
+}
+```
+
+---
+
+### 12.5. Delete Guestbook Message
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/guestbook/:message_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Message deleted successfully"
+}
+```
+
+---
+
+### 12.6. Catatan Keamanan & Arsitektur Guestbook
+- **Alur Moderasi**: Semua ucapan dari endpoint publik berstatus awal `'pending'`. Pesan berstatus `'pending'`, `'rejected'`, atau `'hidden'` terfilter secara mutlak di SQL sehingga tidak akan pernah tampil pada endpoint publik.
+- **Opsi Asosiasi Tamu (Opsi B)**: Pesan publik disimpan langsung dengan `guest_name` dan `guest_id` disetel `NULL`. Hal ini memisahkan data ucapan tamu dari baris RSVP dan mencegah data sampah di tabel `guests`.
+- **Urutan Evaluasi Partner**: Middleware otentikasi (401) dan role (403) dijalankan terlebih dahulu, kemudian validasi parameter ID (400 untuk ID tidak valid atau melebihi kapasitas int64), validasi body (400), dan verifikasi kepemilikan di SQL (404 seragam jika pesan atau undangan tidak ditemukan/bukan milik partner).
+- **Hard Delete**: Penghapusan pesan guestbook oleh partner bersifat permanen (*hard delete*) dan idempoten (pemanggilan kedua mengembalikan 404).
+- **Sanitasi HTML & Escaping**: Pesan disimpan apa adanya dalam representasi UTF-8. Sanitasi XSS menjadi tanggung jawab renderer frontend sebelum dimasukkan ke dalam DOM.
+- **Risiko Tanpa Rate Limiting**: Tidak adanya rate limiter pada endpoint publik berisiko menimbulkan spam pengiriman ucapan. Default status `'pending'` berfungsi sebagai mitigasi awal agar spam tidak langsung tampil ke publik. Koordinasi lebih lanjut dengan Catur diperlukan untuk menerapkan IP rate limiting di API Gateway.
+
