@@ -234,12 +234,37 @@ func SetupRouter(
 			middleware.RequireRole("partner"),
 			handlers.DeleteInvitationGuestbookMessage(pool),
 		)
+		api.GET(
+			"/invitations/:id/gifts",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationGifts(pool),
+		)
+		api.POST(
+			"/invitations/:invitation_id/gifts",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateInvitationGift(pool),
+		)
+		api.PATCH(
+			"/invitations/:id/gifts/:gift_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitationGift(pool),
+		)
+		api.DELETE(
+			"/invitations/:id/gifts/:gift_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.DeleteInvitationGift(pool),
+		)
 
 		// Public RSVP & Invitation
 		api.POST("/public/invitations/:slug/rsvp", handlers.SubmitPublicRSVP(pool))
 		api.GET("/public/invitations/:slug", handlers.GetPublicInvitation(pool))
 		api.POST("/public/invitations/:slug/guestbook", handlers.SubmitPublicGuestbookMessage(pool))
 		api.GET("/public/invitations/:slug/guestbook", handlers.GetPublicGuestbookMessages(pool))
+		api.GET("/public/invitations/:slug/gifts", handlers.GetPublicInvitationGifts(pool))
 
 		// Admin routes
 		admin := api.Group("/admin")
