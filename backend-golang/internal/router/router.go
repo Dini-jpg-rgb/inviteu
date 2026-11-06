@@ -99,6 +99,14 @@ func SetupRouter(
 		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
 		api.GET("/templates/:id", handlers.GetTemplateByID(pool))
 
+		// Template write (Designer & Admin)
+		templatesAuth := api.Group("/templates")
+		templatesAuth.Use(middleware.AuthRequired(pool, jwtSecret))
+		templatesAuth.Use(middleware.RequireRole("designer", "admin"))
+		templatesAuth.POST("", handlers.CreateTemplate(pool))
+		templatesAuth.PATCH("/:id", handlers.UpdateTemplate(pool))
+		templatesAuth.DELETE("/:id", handlers.DeleteTemplate(pool))
+
 		// Orders and payments
 		api.POST(
 			"/orders",

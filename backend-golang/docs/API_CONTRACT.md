@@ -1565,4 +1565,158 @@ Untuk slug yang tidak valid, tidak ditemukan, berstatus `'draft'`, atau `'expire
 10. **Risiko Scraping Tanpa Rate Limiting**:
     - Endpoint publik `GET /api/v1/public/invitations/:slug/gifts` belum dilengkapi rate limiter. Terdapat potensi scraping nomor rekening/e-wallet oleh bot. Rekomendasi mitigasi ke Catur adalah penerapan rate limiter di API Gateway / Cloudflare WAF.
 
+---
+
+## 14. Template Write (Management)
+
+Modul Template Write memfasilitasi peran Designer dan Admin untuk membuat template baru, memperbarui metadata template, dan menghapus template berstatus draft.
+
+### 14.1. Create Template
+
+- **Method**: `POST`
+- **Path**: `/api/v1/templates`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("designer", "admin")`)
+- **Otorisasi**: Designer dan Admin.
+- **Body Limit**: Maksimal 64 KB (`http.MaxBytesReader`).
+- **Aturan Kepemilikan & Status**:
+  - Kolom `status` selalu di-set `"draft"` di server (input status dari body diabaikan).
+  - Kolom `designer_id` diambil dari identitas token terautentikasi pengguna (`userID` context). Jika Admin yang membuat, `designer_id` otomatis diisi dengan ID akun admin tersebut.
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `name` | string | Ya | Nama template (1 - 255 rune, whitespace di-trim, tidak boleh kosong) |
+| `category_id` | integer | Ya | ID kategori template (harus ada di tabel `template_categories`) |
+| `slug` | string | Tidak | Format `^[a-z0-9]+(?:-[a-z0-9]+)*$` (maks 255). Jika tidak diisi, otomatis dibuat dari `name` + sufiks hex acak |
+| `description` | string | Tidak | Deskripsi template |
+| `price` | number | Tidak | Harga template (default `0`, harus non-negatif finite number) |
+| `style` | string | Tidak | Gaya desain template (maks 100 karakter) |
+| `color` | string | Tidak | Skema warna template (maks 100 karakter) |
+| `thumbnail_file_id` | integer | Tidak | ID file penyimpanan thumbnail (jika diisi harus ada di `storage_files`) |
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Template created successfully",
+  "data": {
+    "id": 10,
+    "category_id": 1,
+    "designer_id": 2,
+    "name": "Rustic Floral Wedding",
+    "slug": "rustic-floral-wedding-a1b2c3",
+    "description": "Tema elegan bernuansa bunga rustic",
+    "thumbnail_file_id": 10,
+    "price": "150000.00",
+    "style": "Rustic",
+    "color": "Terracotta",
+    "status": "draft",
+    "created_at": "2026-11-05T16:00:00Z",
+    "updated_at": "2026-11-05T16:00:00Z"
+  }
+}
+```
+
+#### Response Error
+- **400 Bad Request**: Validasi gagal (nama kosong / > 255 rune, category_id tidak valid atau tidak ditemukan di database, format slug salah, price negatif, style/color > 100 rune, `thumbnail_file_id` tidak ada di `storage_files`).
+- **401 Unauthorized**: Token hilang atau tidak valid.
+- **403 Forbidden**: Role bukan designer atau admin (misal: partner).
+- **409 Conflict**: Custom slug sudah digunakan oleh template lain (`{"slug": "slug_already_taken"}`).
+
+---
+
+### 14.2. Update Template (Partial Update)
+
+- **Method**: `PATCH`
+- **Path**: `/api/v1/templates/:id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("designer", "admin")`)
+- **Otorisasi**:
+  - Designer: Hanya dapat memperbarui template miliknya sendiri.
+  - Admin: Dapat memperbarui template milik desainer mana pun.
+  - Template milik designer lain (jika diakses designer) menghasilkan 404 seragam.
+- **Validasi Status**:
+  - Hanya dapat memperbarui template yang berstatus `"draft"` atau `"revision"`.
+  - Jika berstatus `"publish"` atau status lainnya, mengembalikan `409 Conflict`.
+- **Aturan DTO & Null Handling**:
+  - Field tidak dikirim = tidak berubah.
+  - Nilai `null` pada field opsional (`description`, `style`, `color`, `thumbnail_file_id`) = mengosongkan field tersebut menjadi `NULL` di database.
+  - Nilai `null` pada field wajib (`name`, `category_id`, `price`, `slug`) = ditolak dengan `400 Bad Request`.
+  - Field `status`, `designer_id`, dan `id` diabaikan (tidak dapat diubah via PATCH).
+  - Body kosong `{}` = ditolak dengan `400 Bad Request`.
+  - Memperbarui kolom `updated_at = CURRENT_TIMESTAMP`.
+
+#### Request Body (Contoh)
+
+```json
+{
+  "name": "Rustic Floral Wedding v2",
+  "price": 175000,
+  "style": null
+}
+```
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Template updated successfully",
+  "data": {
+    "id": 10,
+    "category_id": 1,
+    "designer_id": 2,
+    "name": "Rustic Floral Wedding v2",
+    "slug": "rustic-floral-wedding-a1b2c3",
+    "description": "Tema elegan bernuansa bunga rustic",
+    "thumbnail_file_id": 10,
+    "price": "175000.00",
+    "style": null,
+    "color": "Terracotta",
+    "status": "draft",
+    "created_at": "2026-11-05T16:00:00Z",
+    "updated_at": "2026-11-05T16:25:00Z"
+  }
+}
+```
+
+#### Response Error
+- **400 Bad Request**: ID tidak valid, body kosong, null pada field wajib, format salah, atau `thumbnail_file_id` tidak ada di `storage_files`.
+- **401 Unauthorized**: Tanpa token.
+- **403 Forbidden**: Role partner.
+- **404 Not Found**: Template tidak ditemukan atau bukan milik designer.
+- **409 Conflict**: Status bukan draft/revision (`"status": "template_status_not_editable"`), atau slug baru bertabrakan dengan template lain.
+
+---
+
+### 14.3. Delete Template
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/templates/:id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("designer", "admin")`)
+- **Otorisasi**: Designer (hanya miliknya), Admin (siapa pun).
+- **Aturan Hapus**:
+  - Hanya template berstatus `"draft"` yang boleh dihapus. Status selain draft mengembalikan `409 Conflict`.
+  - Template yang memiliki sections (`template_sections`) atau assets (`template_assets`) internal diizinkan dihapus secara atomik dan bersih via `ON DELETE CASCADE`.
+  - Template yang dirujuk oleh tabel domain eksternal (`invitations`, `package_templates`, atau `invitation_favorites`) **DITOLAK** dengan `409 Conflict`.
+  - Penghapusan kedua kali mengembalikan `404 Not Found`.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Template deleted successfully"
+}
+```
+
+#### Response Error
+- **400 Bad Request**: ID tidak valid.
+- **401 Unauthorized**: Tanpa token.
+- **403 Forbidden**: Role partner.
+- **404 Not Found**: Template tidak ditemukan atau bukan milik designer.
+- **409 Conflict**: Status bukan draft atau template sedang dirujuk oleh undangan/paket/favorit.
+
+
 
