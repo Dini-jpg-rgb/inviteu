@@ -1,0 +1,288 @@
+.panel {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+}
+
+.categoryNavigation {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid #f0e9df;
+}
+
+.categoryTabs {
+  min-width: 0;
+}
+
+.categoryTabs :global(.ant-tabs-nav) {
+  margin: 0;
+}
+
+.categoryTabs :global(.ant-tabs-nav::before) {
+  border-bottom: 0;
+}
+
+.categoryTabs :global(.ant-tabs-nav-list) {
+  max-width: 100%;
+  flex-wrap: nowrap;
+}
+
+.categoryTabs :global(.ant-tabs-tab) {
+  flex: 0 0 auto;
+  margin: 0 14px 0 0 !important;
+  padding: 9px 0 !important;
+}
+
+.categoryTabLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #765d48;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.categoryTabs :global(.ant-tabs-tab-active .categoryTabLabel) {
+  color: #744507;
+  font-weight: 600;
+}
+
+.categoryTabs :global(.ant-tabs-ink-bar) {
+  height: 2px;
+  border-radius: 2px;
+  background: #fcb040;
+}
+
+.categoryTabs :global(.ant-tabs-nav-operations) {
+  background: #fff;
+}
+
+.assetContent {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  scrollbar-color: #d7c3a7 transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.assetContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+.assetContent::-webkit-scrollbar-thumb {
+  border-radius: 6px;
+  background: #d7c3a7;
+}
+
+.panelHeading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panelTitle {
+  color: #3a2313;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.panelDescription {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 9px;
+}
+
+.optionTile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #3a2313;
+  text-align: left;
+  cursor: pointer;
+}
+
+.optionTile:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.optionThumbnail {
+  display: flex;
+  min-width: 0;
+  aspect-ratio: 1.75;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #ebd9be;
+  border-radius: 5px;
+  background: #fff8ee;
+  color: #9a5a00;
+  font-size: 20px;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.optionTile:hover .optionThumbnail,
+.optionTile:focus-visible .optionThumbnail {
+  border-color: #fcb040;
+  background: #fff0d6;
+}
+
+.optionTile:focus-visible {
+  outline: 2px solid #9a5a00;
+  outline-offset: 3px;
+}
+
+.typePreview {
+  display: flex;
+  width: 72%;
+  min-height: 52%;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #ebd9be;
+  color: #3a2313;
+}
+
+.optionLabel {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.libraryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 8px;
+}
+
+.libraryAsset {
+  min-width: 0;
+  margin: 0 !important;
+  padding: 6px !important;
+  border-color: #f0e9df !important;
+  border-radius: 6px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.libraryAssetSelected {
+  border-color: #fcb040 !important;
+  background: #fffaf1;
+}
+
+.libraryAsset :global(.ant-card-body) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 !important;
+}
+
+.libraryThumbnail {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 1.5;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: #fff8ee;
+  cursor: zoom-in;
+}
+
+.assetActions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 2px;
+}
+
+.assetActions :global(.ant-btn) {
+  width: 26px;
+  min-width: 26px;
+  height: 24px;
+  padding: 0;
+}
+
+.uploadArea {
+  flex: 0 0 auto;
+}
+
+.uploadDragger :global(.ant-upload) {
+  padding: 10px 8px !important;
+}
+
+.uploadDragger :global(.ant-upload-drag-container) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.uploadIcon {
+  color: #9a5a00;
+  font-size: 18px;
+}
+
+.uploadTitle {
+  color: #3a2313;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.uploadHint {
+  min-width: 0;
+  overflow: hidden;
+  color: #765d48;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .categoryNavigation {
+    padding-inline: 8px;
+  }
+
+  .categoryTabs :global(.ant-tabs-tab) {
+    margin-right: 10px !important;
+  }
+
+  .categoryTabLabel {
+    font-size: 10px;
+  }
+
+  .assetContent {
+    padding: 10px;
+  }
+}

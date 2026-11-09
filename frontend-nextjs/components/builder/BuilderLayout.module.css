@@ -1,0 +1,175 @@
+.workspace {
+  box-sizing: border-box;
+  width: auto;
+  height: calc(100dvh - clamp(56px, 4.2vw, 64px));
+  min-height: 0;
+  margin: calc(-1 * clamp(12px, 2.2vw, 30px));
+  --builder-sidebar-width: clamp(300px, 25vw, 340px);
+  --builder-settings-width: 286px;
+  background: #f2f0ed;
+}
+
+.workspace,
+.preview,
+.workspace :global(*),
+.preview :global(*) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.workspace::-webkit-scrollbar,
+.preview::-webkit-scrollbar,
+.workspace :global(*::-webkit-scrollbar),
+.preview :global(*::-webkit-scrollbar),
+.assetsDrawer :global(*::-webkit-scrollbar),
+.propertiesDrawer :global(*::-webkit-scrollbar) {
+  display: none;
+}
+
+.assetsDrawer,
+.propertiesDrawer,
+.assetsDrawer :global(*),
+.propertiesDrawer :global(*) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.assetsDrawer :global(.ant-drawer-body),
+.propertiesDrawer :global(.ant-drawer-body) {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.assetsDrawer :global(.ant-drawer-content-wrapper) {
+  width: min(90vw, 460px) !important;
+}
+
+.propertiesDrawer :global(.ant-drawer-content-wrapper) {
+  width: min(90vw, 400px) !important;
+}
+
+.desktopSidebar {
+  display: none;
+  min-width: 0;
+  transition: width 200ms ease-in-out, flex-basis 200ms ease-in-out;
+}
+
+.mobilePanelActions {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 8px clamp(8px, 1.2vw, 16px);
+}
+
+.mobilePanelActions > :global(.ant-space) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.desktopProperties {
+  display: none;
+  position: relative;
+  min-width: 0;
+  transition: width 180ms ease-in-out, flex-basis 180ms ease-in-out;
+}
+
+.desktopProperties > aside {
+  box-sizing: border-box;
+  width: var(--builder-settings-width) !important;
+}
+
+.propertiesToggle {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: -14px;
+  width: 28px;
+  min-width: 28px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  transform: translateY(-50%);
+  border: 1px solid #ebd9be !important;
+  border-radius: 6px 0 0 6px !important;
+  background: #fff !important;
+}
+
+@media (min-width: 1280px) {
+  .desktopSidebar {
+    display: flex;
+    width: var(--builder-sidebar-width);
+    flex: 0 0 var(--builder-sidebar-width);
+  }
+
+  .desktopSidebar.sidebarCollapsed {
+    width: 60px;
+    min-width: 60px;
+    flex-basis: 60px;
+  }
+
+  .sidebarCollapsed :global(.ant-tabs-nav) {
+    width: 100%;
+    padding: 4px 3px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .sidebarCollapsed :global(.ant-tabs-nav-list) {
+    flex-direction: column;
+  }
+
+  .sidebarCollapsed :global(.ant-tabs-tab) {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 2px !important;
+  }
+
+  .sidebarCollapsed :global(.ant-tabs-tab-btn > span) {
+    flex-direction: column;
+    gap: 0;
+    font-size: 0;
+  }
+
+  .sidebarCollapsed :global(.ant-tabs-tab-btn .anticon) {
+    font-size: 17px;
+  }
+
+  .sidebarCollapsed :global(.ant-tabs-content-holder) {
+    display: none;
+  }
+
+  .mobilePanelActions {
+    display: none;
+  }
+
+  .desktopProperties {
+    display: block;
+    height: 100%;
+    flex: 0 0 var(--builder-settings-width);
+  }
+
+  .desktopProperties.propertiesCollapsed {
+    width: 28px;
+    flex-basis: 28px;
+  }
+
+  .propertiesCollapsed .propertiesToggle {
+    left: 0;
+    border-radius: 6px 0 0 6px !important;
+  }
+
+  .assetsDrawer,
+  .propertiesDrawer {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .mobilePanelActions :global(.ant-btn) {
+    padding-inline: 8px;
+  }
+}

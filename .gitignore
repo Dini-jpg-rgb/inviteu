@@ -1,2 +1,11 @@
 
 backend-golang/server.exe
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+.next/
+**/.next/
+*.tsbuildinfo

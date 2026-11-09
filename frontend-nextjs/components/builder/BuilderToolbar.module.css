@@ -1,0 +1,109 @@
+.toolbar {
+  min-width: 0;
+  min-height: 52px;
+  padding: 5px clamp(8px, 1vw, 14px);
+  gap: 10px;
+}
+
+.toolbar > div:first-child {
+  min-width: 0;
+  flex: 0 1 auto;
+  gap: 8px;
+}
+
+.documentDetails {
+  min-width: 0;
+  max-width: 340px;
+}
+
+.titleInput {
+  width: clamp(120px, 15vw, 210px);
+  font-weight: 600;
+}
+
+.titleInput:global(.ant-input) {
+  height: 30px;
+  padding-inline: 8px;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.titleInput:global(.ant-input:hover),
+.titleInput:global(.ant-input:focus) {
+  border-color: #ebd9be !important;
+}
+
+.toolbar :global(.ant-btn) {
+  min-width: 32px;
+  height: 32px;
+  padding-inline: 8px;
+  font-size: 12px;
+}
+
+.toolbar :global(.ant-select-selector) {
+  min-height: 32px !important;
+  font-size: 12px;
+}
+
+.toolbar :global(.ant-select-single) {
+  height: 32px;
+}
+
+.toolbar :global(.ant-tag) {
+  padding-inline: 6px;
+  font-size: 10px;
+  line-height: 18px;
+}
+
+.actions {
+  min-width: 0;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 4px !important;
+}
+
+.sidebarToggle {
+  display: inline-flex !important;
+}
+
+@media (max-width: 767px) {
+  .toolbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .toolbar > div:first-child {
+    flex: 1 1 100%;
+  }
+
+  .actions {
+    width: 100%;
+    flex: 1 1 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .sidebarToggle {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .toolbar > div:first-child {
+    flex: 1 1 260px;
+  }
+
+  .actions {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  .sidebarToggle {
+    display: none !important;
+  }
+}
