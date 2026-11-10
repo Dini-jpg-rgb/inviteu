@@ -25,3 +25,46 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ============================================================== */
+/* PRINT STYLES: Cetak khusus invoice/receipt tanpa sidebar/tombol */
+/* ============================================================== */
+@media print {
+  /* Sembunyikan sidebar, navbar, tombol-tombol dan banner interaktif */
+  aside,
+  nav,
+  .no-print,
+  [data-no-print] {
+    display: none !important;
+  }
+
+  /* Reset halaman cetak agar bersih berlatar putih */
+  html,
+  body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #171717 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hilangkan overflow-hidden & batasan tinggi layar agar dokumen tidak terpotong */
+  div:has(> aside),
+  div:has(> main),
+  main {
+    height: auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+
+  @page {
+    size: auto;
+    margin: 12mm 15mm;
+  }
+}

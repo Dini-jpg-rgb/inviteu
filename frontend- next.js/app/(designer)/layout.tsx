@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { useAuth } from "@/context/AuthContext";
@@ -46,19 +47,21 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
       {/* Sidebar Designer sesuai PRD Bagian 17 */}
       <aside className="w-[260px] shrink-0 h-screen sticky top-0 overflow-y-auto border-r border-zinc-200 bg-white p-6 flex flex-col justify-between dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-col gap-6">
-          {/* Header Brand Designer */}
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-sm shadow">
-              IU
-            </div>
-            <div>
-              <h2 className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-50 leading-none">
-                InviteU Studio
-              </h2>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Designer Workspace
-              </p>
-            </div>
+          {/* InviteU Circular Logo - Centered in Sidebar */}
+          <div className="pt-1 flex items-center justify-center">
+            <Link href="/designer/templates" className="inline-flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md border border-zinc-200/80 hover:scale-105 transition-transform">
+                <Image
+                  src="/logo-inviteu.svg.svg"
+                  alt="InviteU Logo"
+                  width={48}
+                  height={48}
+                  priority
+                  unoptimized
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </Link>
           </div>
 
           {/* Quick Action Button Create Template (PRD 18.3) */}
