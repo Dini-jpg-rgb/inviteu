@@ -49,6 +49,17 @@ func main() {
 		midtransClient,
 	)
 
+	driveCfg := handlers.DriveAuthConfig{
+		ClientID:           cfg.GoogleClientID,
+		ClientSecret:       cfg.GoogleClientSecret,
+		RedirectURL:        cfg.GoogleDriveRedirectURL,
+		FrontendURL:        cfg.FrontendURL,
+		TokenEncryptionKey: cfg.TokenEncryptionKey,
+		JWTSecret:          cfg.JWTSecret,
+		AppEnv:             cfg.AppEnv,
+	}
+	handlers.MountDriveRoutes(r, pool, driveCfg)
+
 	fmt.Println("Invitation Backend running on http://localhost:8080")
 
 	if err := r.Run(":8080"); err != nil {
