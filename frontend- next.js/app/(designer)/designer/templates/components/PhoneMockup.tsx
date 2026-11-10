@@ -44,7 +44,7 @@ export function PhoneMockup({
         >
           {/* Internal Screen Container (375x750 mobile screen ratio) */}
           <div
-            className="relative w-[360px] sm:w-[375px] h-[750px] bg-white rounded-[40px] overflow-hidden flex flex-col select-none"
+            className="relative w-[390px] h-[844px] max-h-[92vh] bg-white rounded-[44px] overflow-hidden flex flex-col select-none"
             style={{
               WebkitMaskImage: "-webkit-radial-gradient(white, black)",
               maskImage: "radial-gradient(white, black)",
@@ -84,7 +84,7 @@ export function PhoneMockup({
             </div>
 
             {/* Scrollable Template Content */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth scrollbar-thin scrollbar-thumb-zinc-300">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth no-scrollbar">
               {children}
             </div>
 

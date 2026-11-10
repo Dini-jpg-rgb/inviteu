@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PhoneMockup } from "../components/PhoneMockup";
 import { MogranLauraInvitation } from "../components/MogranLauraInvitation";
+import { BaliTropicalInvitation } from "../components/BaliTropicalInvitation";
+import { EmeraldGoldBasicInvitation } from "../components/EmeraldGoldBasicInvitation";
 import { getTemplateBySlug, TEMPLATES_REGISTRY } from "../themes/registry";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -221,7 +223,13 @@ export default function TemplatePreviewPage() {
             zoomLevel={zoomLevel}
             templateTitle={template.name}
           >
-            <MogranLauraInvitation themeData={template} />
+            {template.slug === "emerald-gold-basic" ? (
+              <EmeraldGoldBasicInvitation themeData={template} />
+            ) : template.slug === "bali-tropical" ? (
+              <BaliTropicalInvitation themeData={template} />
+            ) : (
+              <MogranLauraInvitation themeData={template} />
+            )}
           </PhoneMockup>
         </div>
       </div>
@@ -320,12 +328,18 @@ export default function TemplatePreviewPage() {
                   zoomLevel={zoomLevel}
                   templateTitle={template.name}
                 >
-                  <MogranLauraInvitation themeData={template} />
+                  {template.slug === "emerald-gold-basic" ? (
+                    <EmeraldGoldBasicInvitation themeData={template} />
+                  ) : template.slug === "bali-tropical" ? (
+                    <BaliTropicalInvitation themeData={template} />
+                  ) : (
+                    <MogranLauraInvitation themeData={template} />
+                  )}
                 </PhoneMockup>
               </div>
             ) : (
               /* Edge-to-Edge Standalone Mobile View */
-              <div className="w-full max-w-[420px] h-[92vh] max-h-[860px] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col relative border border-zinc-800">
+              <div className="w-full max-w-[420px] h-[92vh] max-h-[860px] bg-[#102218] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative border border-zinc-800">
                 <div className="bg-zinc-900 text-white text-[11px] px-4 py-2 flex items-center justify-between border-b border-zinc-800">
                   <div className="flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -333,8 +347,14 @@ export default function TemplatePreviewPage() {
                   </div>
                   <span className="text-zinc-400">Mobile Safari Web</span>
                 </div>
-                <div className="flex-1 overflow-y-auto overflow-x-hidden relative scrollbar-thin scrollbar-thumb-zinc-300">
-                  <MogranLauraInvitation themeData={template} />
+                <div className="flex-1 overflow-y-auto overflow-x-hidden relative no-scrollbar">
+                  {template.slug === "emerald-gold-basic" ? (
+                    <EmeraldGoldBasicInvitation themeData={template} />
+                  ) : template.slug === "bali-tropical" ? (
+                    <BaliTropicalInvitation themeData={template} />
+                  ) : (
+                    <MogranLauraInvitation themeData={template} />
+                  )}
                 </div>
               </div>
             )}

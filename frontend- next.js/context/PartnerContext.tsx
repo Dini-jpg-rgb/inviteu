@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 export interface PackageTransaction {
   id: string;
   orderNumber: string;
-  packageId: "basic" | "pro" | "premium";
+  packageId: "basic" | "medium" | "pro" | "premium";
   packageName: string;
   amount: string;
   status: "Paid" | "Pending" | "Failed";
@@ -27,10 +27,11 @@ export interface PartnerInvitation {
 }
 
 interface PartnerContextType {
-  activePackage: "basic" | "pro" | "premium" | null;
+  activePackage: "basic" | "medium" | "pro" | "premium" | null;
+  setActivePackage: (pkg: "basic" | "medium" | "pro" | "premium" | null) => void;
   transactions: PackageTransaction[];
   invitations: PartnerInvitation[];
-  buyPackage: (packageId: "basic" | "pro" | "premium") => void;
+  buyPackage: (packageId: "basic" | "medium" | "pro" | "premium") => void;
   resetPackage: () => void;
   loadDemoInvitations: () => void;
   clearInvitations: () => void;
@@ -102,13 +103,13 @@ export const DEMO_TRANSACTIONS: PackageTransaction[] = [
 ];
 
 export function PartnerProvider({ children }: { children: React.ReactNode }) {
-  const [activePackage, setActivePackage] = useState<"basic" | "pro" | "premium" | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [activePackage, setActivePackage] = useState<"basic" | "medium" | "pro" | "premium" | null>(() => {
+    if (typeof window === "undefined") return "basic";
     try {
       const saved = localStorage.getItem("inviteu_active_package");
-      return (saved as "basic" | "pro" | "premium") || null;
+      return (saved as "basic" | "medium" | "pro" | "premium") || "basic";
     } catch {
-      return null;
+      return "basic";
     }
   });
 
@@ -148,17 +149,19 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
   }, [activePackage, transactions, invitations]);
 
   // Handler to purchase / activate package
-  const buyPackage = (packageId: "basic" | "pro" | "premium") => {
+  const buyPackage = (packageId: "basic" | "medium" | "pro" | "premium") => {
     setActivePackage(packageId);
 
     const priceMap: Record<string, string> = {
       basic: "Rp 150.000",
+      medium: "Rp 250.000",
       pro: "Rp 350.000",
       premium: "Rp 750.000",
     };
 
     const nameMap: Record<string, string> = {
       basic: "Basic",
+      medium: "Medium",
       pro: "Pro",
       premium: "Premium",
     };
@@ -213,6 +216,7 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
     <PartnerContext.Provider
       value={{
         activePackage,
+        setActivePackage,
         transactions,
         invitations,
         buyPackage,
