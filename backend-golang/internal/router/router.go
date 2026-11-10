@@ -15,6 +15,7 @@ func SetupRouter(
 	pool *pgxpool.Pool,
 	jwtSecret string,
 	appEnv string,
+	googleCfg handlers.GoogleAuthConfig,
 	midtransClient *payment.MidtransClient,
 ) *gin.Engine {
 	router := gin.Default()
@@ -33,15 +34,50 @@ func SetupRouter(
 
 	api := router.Group("/api/v1")
 	{
+		// Authentication
 		api.POST("/auth/register", handlers.Register(pool))
 		api.POST("/auth/login", handlers.Login(pool, jwtSecret))
-
+		api.GET("/auth/google", handlers.GoogleLogin(pool, googleCfg))
+		api.GET("/auth/google/callback", handlers.GoogleCallback(pool, googleCfg))
 		api.POST("/auth/forgot-password", handlers.ForgotPassword(pool, appEnv))
 		api.POST("/auth/reset-password", handlers.ResetPassword(pool))
 
-		api.POST("/auth/logout", middleware.AuthRequired(pool, jwtSecret), handlers.Logout())
+		api.POST(
+			"/auth/logout",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.Logout(),
+		)
 
-		api.GET("/users/me", middleware.AuthRequired(pool, jwtSecret), handlers.GetMe(pool))
+		// Current user
+		api.GET(
+			"/users/me",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.GetMe(pool),
+		)
+		api.PATCH(
+			"/users/me",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.UpdateMe(pool),
+		)
+
+		// Template favorites
+		api.POST(
+			"/users/me/favorites",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.AddTemplateFavorite(pool),
+		)
+		api.GET(
+			"/users/me/favorites",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.GetTemplateFavorites(pool),
+		)
+		api.DELETE(
+			"/users/me/favorites/:template_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			handlers.DeleteTemplateFavorite(pool),
+		)
+
+		// Admin test
 		api.GET(
 			"/admin/test",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -53,41 +89,43 @@ func SetupRouter(
 				})
 			},
 		)
-		api.PATCH(
-			"/users/me",
-			middleware.AuthRequired(pool, jwtSecret),
-			handlers.UpdateMe(pool),
-		)
 
+		// Packages
 		api.GET("/packages", handlers.GetPackages(pool))
 		api.GET("/packages/:id", handlers.GetPackageByID(pool))
 
-
-		// Public template detail route.
+		// Templates
+		api.GET("/templates", handlers.GetTemplates(pool))
+		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
 		api.GET("/templates/:id", handlers.GetTemplateByID(pool))
 
+		// Template write (Designer & Admin)
+		templatesAuth := api.Group("/templates")
+		templatesAuth.Use(middleware.AuthRequired(pool, jwtSecret))
+		templatesAuth.Use(middleware.RequireRole("designer", "admin"))
+		templatesAuth.POST("", handlers.CreateTemplate(pool))
+		templatesAuth.PATCH("/:id", handlers.UpdateTemplate(pool))
+		templatesAuth.DELETE("/:id", handlers.DeleteTemplate(pool))
 
+		// Orders and payments
 		api.POST(
 			"/orders",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.CreateOrder(pool),
 		)
-
 		api.GET(
 			"/orders",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.GetOrders(pool),
 		)
-
 		api.GET(
 			"/orders/:id",
 			middleware.AuthRequired(pool, jwtSecret),
 			middleware.RequireRole("partner"),
 			handlers.GetOrderByID(pool),
 		)
-
 		api.POST(
 			"/orders/:id/payments",
 			middleware.AuthRequired(pool, jwtSecret),
@@ -95,17 +133,158 @@ func SetupRouter(
 			handlers.CreatePayment(pool, midtransClient),
 		)
 
+		// Add-on orders and invoices
+		api.POST(
+			"/invitations/:invitation_id/addon-orders",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateAddonOrder(pool),
+		)
+		api.GET(
+			"/invoices",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvoices(pool),
+		)
+
+		// Add-ons
 		api.GET("/addons", handlers.GetAddons(pool))
 		api.GET("/addons/:id", handlers.GetAddonByID(pool))
 
-		// Public template catalog route.
-		api.GET("/templates", handlers.GetTemplates(pool))
-		// Public template category route.
-		api.GET("/templates/categories", handlers.GetTemplateCategories(pool))
+		// Midtrans notification callback
+		api.POST(
+			"/payments/midtrans/notification",
+			handlers.MidtransNotification(pool, midtransClient),
+		)
 
+		// Invitations (Feature 3.1)
+		api.POST(
+			"/invitations",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateInvitation(pool),
+		)
+		api.GET(
+			"/invitations",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitations(pool),
+		)
+		api.GET(
+			"/invitations/:id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationByID(pool),
+		)
+		api.PATCH(
+			"/invitations/:id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitation(pool),
+		)
+		api.GET(
+			"/invitations/:id/content",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationContent(pool),
+		)
+		api.PATCH(
+			"/invitations/:id/content",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitationContent(pool),
+		)
+		api.GET(
+			"/invitations/:id/preview",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.PreviewInvitation(pool),
+		)
+		api.GET(
+			"/invitations/:id/versions",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationVersions(pool),
+		)
+		api.POST(
+			"/invitations/:invitation_id/publish",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.PublishInvitation(pool),
+		)
+		api.GET(
+			"/invitations/:id/rsvps",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationRSVPs(pool),
+		)
+		api.DELETE(
+			"/invitations/:id/rsvps/:rsvp_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.DeleteInvitationRSVP(pool),
+		)
+		api.GET(
+			"/invitations/:id/guestbook",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationGuestbookMessages(pool),
+		)
+		api.PATCH(
+			"/invitations/:id/guestbook/:message_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitationGuestbookMessageStatus(pool),
+		)
+		api.DELETE(
+			"/invitations/:id/guestbook/:message_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.DeleteInvitationGuestbookMessage(pool),
+		)
+		api.GET(
+			"/invitations/:id/gifts",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.GetInvitationGifts(pool),
+		)
+		api.POST(
+			"/invitations/:invitation_id/gifts",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.CreateInvitationGift(pool),
+		)
+		api.PATCH(
+			"/invitations/:id/gifts/:gift_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.UpdateInvitationGift(pool),
+		)
+		api.DELETE(
+			"/invitations/:id/gifts/:gift_id",
+			middleware.AuthRequired(pool, jwtSecret),
+			middleware.RequireRole("partner"),
+			handlers.DeleteInvitationGift(pool),
+		)
+
+		// Public RSVP & Invitation
+		api.POST("/public/invitations/:slug/rsvp", handlers.SubmitPublicRSVP(pool))
+		api.GET("/public/invitations/:slug", handlers.GetPublicInvitation(pool))
+		api.POST("/public/invitations/:slug/guestbook", handlers.SubmitPublicGuestbookMessage(pool))
+		api.GET("/public/invitations/:slug/guestbook", handlers.GetPublicGuestbookMessages(pool))
+		api.GET("/public/invitations/:slug/gifts", handlers.GetPublicInvitationGifts(pool))
+
+		// Admin routes
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthRequired(pool, jwtSecret))
 		admin.Use(middleware.RequireRole("admin"))
+
+		// Admin User Management
+		admin.GET("/users", handlers.ListUsers(pool))
+		admin.GET("/users/:id", handlers.GetUser(pool))
+		admin.POST("/users", handlers.CreateUser(pool))
+		admin.PATCH("/users/:id", handlers.UpdateUser(pool))
+		admin.PATCH("/users/:id/status", handlers.UpdateUserStatus(pool))
 
 		admin.POST("/packages", handlers.CreatePackage(pool))
 		admin.PATCH("/packages/:id", handlers.UpdatePackage(pool))

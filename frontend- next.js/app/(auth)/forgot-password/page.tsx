@@ -2,12 +2,12 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+import { useRouter } from "next/navigation";
+import { AuthSplitLayout } from "../components/AuthSplitLayout";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,96 +15,83 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (!email) {
-      setError("Silakan masukkan email bisnis Anda");
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError("Silakan masukkan alamat email akun Anda");
       return;
     }
 
     setIsLoading(true);
-    // Simulasi pengiriman reset password
-    await new Promise((r) => setTimeout(r, 700));
+    await new Promise((r) => setTimeout(r, 600));
     setIsLoading(false);
-    setIsSubmitted(true);
+
+    // Navigasi ke halaman Reset Password sesuai alur
+    router.push(`/reset-password?email=${encodeURIComponent(cleanEmail)}`);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-4">
-      <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/80 dark:border-zinc-800 p-8 sm:p-10">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900 font-bold text-xl mb-4 shadow-md">
-            IU
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Atur Ulang Kata Sandi
-          </h1>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2">
-            Masukkan email bisnis yang terdaftar untuk menerima tautan pemulihan
-          </p>
+    <AuthSplitLayout
+      bannerTitle="Tenang, akunmu aman."
+      bannerSubtitle="Kami bantu kamu masuk kembali."
+      portalLabel="Portal Partner"
+    >
+      {/* Title & Subtitle */}
+      <div className="text-center mb-4">
+        <h1 className="font-serif text-2xl sm:text-[26px] font-bold text-zinc-900 tracking-tight leading-tight">
+          Lupa password
+        </h1>
+        <p className="text-xs text-zinc-500 font-normal mt-1">
+          Masukkan email, kami kirim tautan reset
+        </p>
+      </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div className="mb-3 p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+          <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="leading-relaxed">{error}</span>
+        </div>
+      )}
+
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-3">
+        {/* Email Field */}
+        <div>
+          <label className="block text-xs font-semibold text-zinc-700 mb-1">
+            Email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="benabednego@email.com"
+            required
+            className="w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#f5a638] focus:border-transparent transition"
+          />
         </div>
 
-        {isSubmitted ? (
-          <div className="text-center space-y-6">
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm dark:bg-emerald-950/40 dark:border-emerald-900 dark:text-emerald-300">
-              <p className="font-semibold mb-1">Tautan Pemulihan Terkirim!</p>
-              <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                Kami telah mengirimkan instruksi ke email <b>{email}</b>. Silakan periksa kotak masuk atau folder spam Anda.
-              </p>
-            </div>
+        {/* Lanjut Button */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-[#24140b] hover:bg-black text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-60 mt-1"
+        >
+          {isLoading ? "Mengirim tautan..." : "Lanjut"}
+        </button>
+      </form>
 
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={() => setIsSubmitted(false)}
-            >
-              Kirim Ulang ke Email Lain
-            </Button>
-
-            <div>
-              <Link
-                href="/login"
-                className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 hover:underline"
-              >
-                ← Kembali ke Halaman Masuk
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm dark:bg-red-950/40 dark:border-red-900 dark:text-red-400">
-                {error}
-              </div>
-            )}
-
-            <Input
-              label="Email Bisnis Terdaftar"
-              type="email"
-              placeholder="nama@vendoranda.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full font-semibold shadow-md"
-              disabled={isLoading}
-            >
-              {isLoading ? "Mengirim Tautan..." : "Kirim Tautan Pemulihan"}
-            </Button>
-
-            <div className="text-center pt-4">
-              <Link
-                href="/login"
-                className="text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
-              >
-                Sudah ingat kata sandi? <b>Masuk</b>
-              </Link>
-            </div>
-          </form>
-        )}
+      {/* Footer Return to Login */}
+      <div className="text-center mt-5 text-xs text-zinc-500">
+        Kembali ke{" "}
+        <Link
+          href="/login"
+          className="font-bold text-[#d97706] hover:text-[#b45309] hover:underline"
+        >
+          Login
+        </Link>
       </div>
-    </div>
+    </AuthSplitLayout>
   );
 }

@@ -1,6 +1,6 @@
 # InviteU — API Contract
 
-**Status:** Draft — perlu disepakati oleh tim backend  
+**Status:** Draft — diperbarui untuk Modul Template dan Undangan  
 **Base URL:** `/api/v1`  
 **Backend:** Go, Gin, PostgreSQL
 
@@ -15,7 +15,11 @@ Perubahan kontrak harus dikomunikasikan sebelum implementasi yang terdampak dila
 - Semua endpoint API baru menggunakan prefix `/api/v1`.
 - Request dan response menggunakan JSON kecuali endpoint upload file atau kebutuhan khusus lainnya.
 - Nama properti JSON menggunakan `snake_case`.
-- Waktu menggunakan format ISO 8601 dengan timezone yang jelas.
+- **Penanganan Input Tidak Valid**: Seluruh input pengguna yang tidak valid, format salah, atau melanggar batasan sintaksis dibalas dengan HTTP status code `400 Bad Request` (keputusan arsitektur tim backend; status code `422 Unprocessable Content` tidak digunakan pada modul ini).
+- **Format Waktu dan Timestamp**: Kolom waktu pada database PostgreSQL menggunakan tipe `timestamp without time zone`. Library database (pgx v5) menetapkan zona UTC saat serialisasi sehingga JSON berakhiran `Z`, meskipun database lokal beroperasi pada zona Asia/Makassar (WITA). Hal ini dicatat sebagai catatan teknis yang diketahui (*known technical debt*) dan belum diseragamkan.
+- **Format Tanggal dan Jam Acara**: Tanggal acara (`events.date`) wajib berformat `YYYY-MM-DD`, dan waktu acara (`start_time`, `end_time`) berformat `HH:mm` atau `HH:mm:ss`.
+- **Format Harga (*Price*)**: Kolom harga pada template dikembalikan bertipe `string` di JSON (hasil konversi dari tipe SQL `NUMERIC` via `price::text`) untuk menghindari hilangnya presisi angka desimal pada representasi *floating point*.
+- **Status Undangan**: Status undangan pada database dan JSON konsisten menggunakan huruf kecil (*lowercase*), yaitu `draft`, `published`, dan `expired`.
 - Gunakan HTTP status code sesuai hasil operasi.
 - Endpoint privat wajib memeriksa autentikasi.
 - Hak akses wajib diperiksa di backend, bukan hanya di frontend.
@@ -28,44 +32,47 @@ Perubahan kontrak harus dikomunikasikan sebelum implementasi yang terdampak dila
 
 Contoh response `200 OK`:
 
-    {
-      "success": true,
-      "message": "Data retrieved successfully",
-      "data": {
-        "id": 1,
-        "name": "Example"
-      }
-    }
+```json
+{
+  "success": true,
+  "message": "Data retrieved successfully",
+  "data": {
+    "id": 1,
+    "name": "Example"
+  }
+}
+```
 
-`data` menyesuaikan hasil endpoint. Untuk endpoint daftar, `data` dapat berupa array.
+`data` menyesuaikan hasil endpoint. Untuk endpoint daftar, `data` dapat berupa array atau objek pembungkus koleksi dan pagination.
 
 ### 3.2 Response Error
 
-Contoh response validasi `422 Unprocessable Content`:
+Contoh response validasi `400 Bad Request`:
 
-    {
-      "success": false,
-      "message": "Validation failed",
-      "errors": {
-        "email": "Email format is invalid"
-      }
-    }
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": {
+    "title": "title cannot be empty"
+  }
+}
+```
 
-Untuk error yang tidak berkaitan dengan validasi, properti `errors` boleh tidak disertakan.
+Untuk error umum yang tidak berkaitan dengan validasi per field, properti `errors` dapat berupa penanda spesifik (misalnya `{"package": "quota_exhausted"}`) atau tidak disertakan jika pesan utama pada `message` sudah mencukupi.
 
 ### 3.3 HTTP Status Code
 
 - `200 OK`: operasi berhasil.
 - `201 Created`: resource berhasil dibuat.
 - `204 No Content`: operasi berhasil tanpa response body.
-- `400 Bad Request`: request tidak valid atau tidak dapat diproses.
-- `401 Unauthorized`: pengguna belum terautentikasi atau kredensial tidak valid.
-- `403 Forbidden`: pengguna tidak memiliki izin.
-- `404 Not Found`: resource tidak ditemukan atau tidak dapat diakses oleh pengguna tersebut.
-- `409 Conflict`: konflik dengan kondisi resource yang ada.
-- `422 Unprocessable Content`: format request dapat dibaca, tetapi validasi bisnis gagal.
+- `400 Bad Request`: request tidak valid, parsing JSON gagal, parameter di luar batas, atau validasi input gagal.
+- `401 Unauthorized`: pengguna belum terautentikasi atau token tidak valid.
+- `403 Forbidden`: pengguna tidak memiliki izin/role yang sesuai, atau paket/kuota tidak mencukupi.
+- `404 Not Found`: resource tidak ditemukan atau bukan milik pengguna tersebut (perlindungan kepemilikan).
+- `409 Conflict`: konflik status resource (misalnya mengedit undangan non-draft, duplikasi slug, atau duplikasi favorit).
 - `429 Too Many Requests`: batas request terlampaui.
-- `500 Internal Server Error`: kesalahan internal yang tidak terduga.
+- `500 Internal Server Error`: kesalahan internal server atau database yang tidak terduga.
 
 Semua error harus menggunakan format JSON yang konsisten, kecuali endpoint yang memang memiliki kebutuhan khusus.
 
@@ -74,18 +81,16 @@ Semua error harus menggunakan format JSON yang konsisten, kecuali endpoint yang 
 Role utama InviteU:
 
 - `partner`: mengelola akun partner, paket yang dimiliki, pesanan, dan undangan miliknya.
-- `designer`: mengelola tugas desain dan revisi yang ditugaskan kepadanya.
+- `designer`: mengelola template, tugas desain, dan revisi yang ditugaskan kepadanya.
 - `admin`: mengakses fungsi administrasi sesuai kewenangannya.
 
-Endpoint publik tidak memerlukan autentikasi. Endpoint privat wajib memeriksa identitas pengguna dan kepemilikan resource.
+Endpoint publik tidak memerlukan autentikasi. Endpoint privat wajib memeriksa identitas pengguna dan kepemilikan resource:
+- Header autentikasi: `Authorization: Bearer <jwt_token>`.
+- Pemeriksaan kepemilikan data: resource milik pengguna lain dibalas `404 Not Found` (bukan `403 Forbidden`) untuk mencegah *user enumeration*.
 
-Role dan kepemilikan resource harus diverifikasi di server. Mengetahui ID resource tidak otomatis memberikan hak untuk mengaksesnya.
+---
 
-Metode autentikasi, masa berlaku token, refresh token, dan mekanisme logout harus ditetapkan sebelum implementasi autentikasi dimulai.
-
-## 5. Rancangan Endpoint
-
-Daftar berikut merupakan rancangan awal, bukan endpoint yang sudah diimplementasikan.
+## 5. Spesifikasi Endpoint
 
 ### 5.1 Autentikasi dan Profil — Developer A
 
@@ -117,35 +122,671 @@ Login Google akan memiliki kontrak tersendiri setelah alur OAuth disepakati.
 
 Pembayaran harus memvalidasi harga dan status order di backend. Status pembayaran hanya boleh dikonfirmasi melalui mekanisme yang tepercaya, seperti verifikasi callback atau webhook payment gateway.
 
-### 5.3 Katalog Template — Developer B
+---
 
-| Method | Endpoint                                  | Akses                         |
-| ------ | ----------------------------------------- | ----------------------------- |
-| GET    | `/api/v1/templates`                       | Publik                        |
-| GET    | `/api/v1/templates/categories`            | Publik                        |
-| GET    | `/api/v1/templates/:id`                   | Publik jika template tersedia |
-| GET    | `/api/v1/users/me/favorites`              | Pengguna terautentikasi       |
-| POST   | `/api/v1/users/me/favorites`              | Pengguna terautentikasi       |
-| DELETE | `/api/v1/users/me/favorites/:template_id` | Pengguna terautentikasi       |
+### 5.3 Katalog Template dan Favorit — Developer B
 
-Parameter pencarian, kategori, filter, sort, dan pagination akan didokumentasikan sesuai kemampuan katalog yang disepakati.
+Ringkasan endpoint template dan favorit:
+
+| Method | Endpoint                                  | Akses                   | Keterangan |
+| ------ | ----------------------------------------- | ----------------------- | ---------- |
+| GET    | `/api/v1/templates/categories`            | Publik                  | Daftar kategori template |
+| GET    | `/api/v1/templates`                       | Publik                  | Katalog template dengan pencarian, filter, dan pagination |
+| GET    | `/api/v1/templates/:id`                   | Publik                  | Detail lengkap template berstatus publish |
+| GET    | `/api/v1/users/me/favorites`              | Pengguna terautentikasi | Daftar template favorit milik pengguna |
+| POST   | `/api/v1/users/me/favorites`              | Pengguna terautentikasi | Menambahkan template ke favorit |
+| DELETE | `/api/v1/users/me/favorites/:template_id` | Pengguna terautentikasi | Menghapus template dari favorit |
+
+#### 5.3.1 GET /api/v1/templates/categories
+- **Akses**: Publik.
+- **Query Parameter**: Tidak ada.
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Template categories retrieved successfully",
+  "data": {
+    "categories": [
+      {
+        "id": 1,
+        "name": "Wedding",
+        "slug": "wedding",
+        "description": "Template untuk pernikahan"
+      }
+    ]
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Kategori berhasil diambil (bisa berupa array kosong jika belum ada data). |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Diurutkan berdasarkan `name ASC, id ASC`.
+
+#### 5.3.2 GET /api/v1/templates
+- **Akses**: Publik.
+- **Query Parameters**:
+  - `page` (integer, opsional, default `1`): Nomor halaman. Wajib `>= 1`. Nilai `< 1` atau bukan angka menghasilkan `400 Bad Request`.
+  - `limit` (integer, opsional, default `12`): Jumlah item per halaman. Wajib `>= 1`. Nilai `< 1` menghasilkan `400 Bad Request`. Nilai `> 50` otomatis dipotong (*capped*) menjadi `50`.
+  - `category` (string, opsional): Filter berdasarkan slug kategori (`tc.slug`).
+  - `q` (string, opsional): Pencarian nama template (`t.name ILIKE %q%`). Maksimum 100 karakter. Karakter `%`, `_`, dan `\` di-escape secara aman. Lebih dari 100 karakter menghasilkan `400 Bad Request`.
+  - `min_price` (number, opsional): Batas harga minimum. Wajib angka non-negatif dan berhingga. Nilai negatif, NaN, atau Inf menghasilkan `400 Bad Request`.
+  - `max_price` (number, opsional): Batas harga maksimum. Wajib angka non-negatif dan berhingga. Jika `min_price > max_price`, menghasilkan `400 Bad Request`.
+  - `style` (string, opsional): Filter gaya template (pencocokan *case-insensitive*). Maksimum 100 karakter.
+  - `color` (string, opsional): Filter warna utama template (*case-insensitive*). Maksimum 100 karakter.
+  - `sort` (string, opsional, default `newest`): Pengurutan data. Whitelist yang diterima:
+    - `newest`: `t.created_at DESC, t.id DESC`
+    - `price_asc`: `t.price ASC, t.id ASC`
+    - `price_desc`: `t.price DESC, t.id ASC`
+    - `name_asc`: `t.name ASC, t.id ASC`
+    Nilai di luar whitelist menghasilkan `400 Bad Request`.
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Templates retrieved successfully",
+  "data": {
+    "templates": [
+      {
+        "id": 15,
+        "name": "Complete Modern Wedding",
+        "slug": "complete-modern-wedding",
+        "description": "Template modern dengan 3 section lengkap",
+        "price": "150000.00",
+        "style": "Modern Minimalist",
+        "color": "Sage Green",
+        "thumbnail_file_id": 42,
+        "category": {
+          "id": 1,
+          "name": "Wedding",
+          "slug": "wedding"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Template berhasil diambil sesuai filter dan pagination. |
+| `400 Bad Request` | Parameter tidak valid (`page < 1`, `limit < 1`, `q > 100`, harga negatif/NaN, `min_price > max_price`, `style/color > 100`, `sort` di luar whitelist). |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Hanya menampilkan template dengan status `"publish"` (`t.status = 'publish'`).
+  - Kolom `price` bertipe string dari PostgreSQL `NUMERIC` (`t.price::text`).
+  - Limit di atas 50 otomatis dipotong menjadi 50 tanpa melempar error.
+
+#### 5.3.3 GET /api/v1/templates/:id
+- **Akses**: Publik.
+- **Path Parameter**:
+  - `id` (integer, wajib): ID template. Wajib integer positif `>= 1`. Nilai `< 1` menghasilkan `400 Bad Request`.
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Template retrieved successfully",
+  "data": {
+    "template": {
+      "id": 15,
+      "name": "Complete Modern Wedding",
+      "slug": "complete-modern-wedding",
+      "description": "Template lengkap dengan section cover dan jadwal",
+      "price": "150000.00",
+      "style": "Modern Minimalist",
+      "color": "Sage Green",
+      "thumbnail_file_id": 10,
+      "category": {
+        "id": 1,
+        "name": "Wedding",
+        "slug": "wedding"
+      },
+      "sections": [
+        {
+          "id": 6,
+          "name": "Cover",
+          "type": "cover",
+          "sort_order": 10,
+          "is_required": true,
+          "is_editable": true,
+          "settings": {
+            "theme": "sage",
+            "layout": "hero"
+          },
+          "fields": [
+            {
+              "id": 5,
+              "field_key": "groom-name",
+              "label": "Nama Mempelai Pria",
+              "field_type": "text",
+              "default_value": "Raka",
+              "is_required": true,
+              "is_editable": true,
+              "sort_order": 10,
+              "validation_rules": {
+                "maxLength": 100
+              }
+            }
+          ]
+        }
+      ],
+      "assets": [
+        {
+          "id": 1,
+          "asset_type": "background",
+          "asset_key": "bg-hero",
+          "storage_file_id": 101,
+          "sort_order": 10
+        }
+      ]
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Detail template berhasil diambil. |
+| `400 Bad Request` | `:id` bukan integer positif. |
+| `404 Not Found` | Template tidak ditemukan atau status template bukan `"publish"`. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Hanya menampilkan template yang berstatus `"publish"`.
+  - Sections diurutkan berdasarkan `sort_order ASC, id ASC`.
+  - Fields di dalam section diurutkan berdasarkan `s.sort_order ASC, s.id ASC, f.sort_order ASC, f.id ASC`.
+  - Assets diurutkan berdasarkan `sort_order ASC, id ASC`.
+
+#### 5.3.4 GET /api/v1/users/me/favorites
+- **Akses**: Pengguna terautentikasi (semua role: `partner`, `designer`, `admin`).
+- **Query Parameters**:
+  - `page` (integer, opsional, default `1`): Wajib `>= 1`.
+  - `limit` (integer, opsional, default `12`): Wajib `>= 1`, maks `50` (dipotong jika lebih).
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Template favorites retrieved successfully",
+  "data": {
+    "templates": [
+      {
+        "id": 15,
+        "name": "Complete Modern Wedding",
+        "slug": "complete-modern-wedding",
+        "description": "Template modern",
+        "price": "150000.00",
+        "style": "Modern Minimalist",
+        "color": "Sage Green",
+        "thumbnail_file_id": 10,
+        "category": {
+          "id": 1,
+          "name": "Wedding",
+          "slug": "wedding"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Daftar favorit berhasil diambil. |
+| `400 Bad Request` | Parameter `page` atau `limit` tidak valid. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Hanya menampilkan template favorit yang saat ini masih berstatus `"publish"`.
+  - Diurutkan berdasarkan waktu penambahan favorit terbaru (`favorite.created_at DESC, favorite.id DESC`).
+
+#### 5.3.5 POST /api/v1/users/me/favorites
+- **Akses**: Pengguna terautentikasi (semua role).
+- **Request Body**:
+```json
+{
+  "template_id": 15
+}
+```
+- **Validasi**: `template_id` wajib berupa integer positif `>= 1`.
+- **Respons Sukses `201 Created`**:
+```json
+{
+  "success": true,
+  "message": "Template added to favorites",
+  "data": {
+    "favorite": {
+      "template_id": 15
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `201 Created` | Template berhasil ditambahkan ke daftar favorit pengguna. |
+| `400 Bad Request` | Body JSON tidak valid atau `template_id` bukan integer positif. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `404 Not Found` | Template tidak ditemukan atau status template bukan `"publish"`. |
+| `409 Conflict` | Template tersebut sudah ada di daftar favorit pengguna. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+
+#### 5.3.6 DELETE /api/v1/users/me/favorites/:template_id
+- **Akses**: Pengguna terautentikasi (semua role).
+- **Path Parameter**:
+  - `template_id` (integer, wajib): ID template yang dihapus dari favorit (wajib `>= 1`).
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Favorite removed successfully"
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Template favorit berhasil dihapus. |
+| `400 Bad Request` | `:template_id` bukan integer positif. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `404 Not Found` | Data favorit tidak ditemukan (belum difavoritkan atau milik user lain). |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+
+---
 
 ### 5.4 Undangan dan Builder — Developer B
 
-| Method | Endpoint                           | Akses                                    |
-| ------ | ---------------------------------- | ---------------------------------------- |
-| POST   | `/api/v1/invitations`              | Partner dengan hak penggunaan yang valid |
-| GET    | `/api/v1/invitations`              | Partner, hanya undangan miliknya         |
-| GET    | `/api/v1/invitations/:id`          | Pemilik undangan atau admin sesuai izin  |
-| PATCH  | `/api/v1/invitations/:id`          | Pemilik undangan dengan izin yang valid  |
-| GET    | `/api/v1/invitations/:id/versions` | Pemilik undangan atau admin sesuai izin  |
-| POST   | `/api/v1/invitations/:id/publish`  | Pemilik undangan dengan izin yang valid  |
-| GET    | `/api/v1/invitations/:id/events`   | Pemilik undangan atau admin sesuai izin  |
-| POST   | `/api/v1/invitations/:id/events`   | Pemilik undangan dengan izin yang valid  |
+Ringkasan endpoint undangan dan builder:
 
-Satu undangan dapat memiliki beberapa event. Perubahan pada undangan yang sudah dipublikasikan harus mengikuti mekanisme versioning: versi publik yang sedang aktif tetap tampil sampai versi baru berhasil dipublikasikan.
+| Method | Endpoint                            | Akses   | Keterangan | Status Implementasi |
+| ------ | ----------------------------------- | ------- | ---------- | ------------------- |
+| POST   | `/api/v1/invitations`               | Partner | Membuat undangan baru (draft) beserta event awal | Diimplementasikan |
+| GET    | `/api/v1/invitations`               | Partner | Melihat daftar undangan milik partner | Diimplementasikan |
+| GET    | `/api/v1/invitations/:id`           | Partner | Melihat detail undangan dan event miliknya | Diimplementasikan |
+| PATCH  | `/api/v1/invitations/:id`           | Partner | Memperbarui judul, slug, dan data event (draft) | Diimplementasikan |
+| GET    | `/api/v1/invitations/:id/content`   | Partner | Membaca struktur section, field, dan nilai konten | Diimplementasikan |
+| PATCH  | `/api/v1/invitations/:id/content`   | Partner | Menyimpan/memperbarui isi field konten (draft) | Diimplementasikan |
+| GET    | `/api/v1/invitations/:id/versions`  | Partner | Riwayat versi undangan | *Belum diimplementasikan* |
+| POST   | `/api/v1/invitations/:id/publish`   | Partner | Publikasi undangan dan pemotongan kuota | *Belum diimplementasikan* |
 
-Endpoint tamu, RSVP, guestbook, hadiah, domain, dan media akan ditambahkan dalam kontrak lanjutan.
+#### 5.4.1 POST /api/v1/invitations
+- **Akses**: Partner terautentikasi (`RequireRole("partner")`).
+- **Request Body**:
+```json
+{
+  "title": "The Wedding of Raka & Alya",
+  "template_id": 15,
+  "slug": "raka-dan-alya",
+  "event": {
+    "name": "Resepsi Pernikahan",
+    "date": "2026-12-25",
+    "start_time": "10:00",
+    "end_time": "14:00",
+    "location": "Grand Ballroom Hotel Indonesia",
+    "address": "Jl. M.H. Thamrin No. 1, Jakarta",
+    "maps_url": "https://maps.google.com/...",
+    "description": "Dress code: Formal pastel"
+  }
+}
+```
+- **Validasi Input**:
+  - `title` (string, wajib): Maksimum 255 karakter, tidak boleh kosong/hanya spasi.
+  - `template_id` (integer, wajib): Wajib integer positif (`> 0`), template harus berstatus `"publish"`.
+  - `slug` (string, opsional): Karakter huruf kecil, angka, dan tanda hubung tunggal (regex `^[a-z0-9]+(?:-[a-z0-9]+)*$`), maksimum 255 karakter. Jika tidak disertakan, slug otomatis dibuat dari judul dengan sufiks 4 karakter heksadesimal acak (maksimal 3 kali percobaan penanganan bentrok).
+  - `event` (object, wajib):
+    - `name` (string, opsional): Jika kosong/tidak diisi, otomatis bernilai sama dengan `title`, maksimum 255 karakter.
+    - `date` (string, wajib): Format wajib `YYYY-MM-DD`.
+    - `start_time` (string, opsional): Format `HH:MM` atau `HH:MM:SS`.
+    - `end_time` (string, opsional): Format `HH:MM` atau `HH:MM:SS`. Jika keduanya ada, `end_time` wajib `>= start_time`.
+    - `location` (string, opsional): Maksimum 255 karakter.
+    - `address`, `maps_url`, `description` (string, opsional).
+- **Respons Sukses `201 Created`**:
+```json
+{
+  "success": true,
+  "message": "Invitation created successfully",
+  "data": {
+    "invitation": {
+      "id": 1,
+      "title": "The Wedding of Raka & Alya",
+      "slug": "raka-dan-alya",
+      "status": "draft",
+      "template": {
+        "id": 15,
+        "name": "Complete Modern Wedding"
+      },
+      "event": {
+        "id": 1,
+        "name": "Resepsi Pernikahan",
+        "date": "2026-12-25",
+        "start_time": "10:00",
+        "end_time": "14:00",
+        "location": "Grand Ballroom Hotel Indonesia",
+        "address": "Jl. M.H. Thamrin No. 1, Jakarta",
+        "maps_url": "https://maps.google.com/...",
+        "description": "Dress code: Formal pastel"
+      },
+      "created_at": "2026-11-02T11:00:00Z",
+      "updated_at": "2026-11-02T11:00:00Z"
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `201 Created` | Undangan berhasil dibuat berstatus draft. |
+| `400 Bad Request` | Body JSON salah, field wajib kosong, format tanggal/jam tidak valid, atau `end_time < start_time`. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `403 Forbidden` | Role bukan `partner`, partner tidak memiliki paket aktif (`errors.package = "no_active_package"`), atau kuota paket habis (`errors.package = "quota_exhausted"`). |
+| `404 Not Found` | Template tidak ditemukan atau statusnya bukan `"publish"`. |
+| `409 Conflict` | Slug custom sudah digunakan oleh undangan lain (`errors.slug = "slug_already_taken"`), atau pembuatan slug otomatis gagal setelah 3 kali retry. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Undangan baru selalu diinisialisasi dengan status `'draft'`.
+  - Otomatis membuat baris `invitation_versions` versi 1 berstatus `'draft'`.
+  - **Aturan Kuota**: Kuota undangan (`invitation_used`) **TIDAK berkurang** saat membuat draft. Kuota hanya berkurang pada tahap publikasi (Fitur 4.1).
+
+#### 5.4.2 GET /api/v1/invitations
+- **Akses**: Partner terautentikasi (`RequireRole("partner")`).
+- **Query Parameters**:
+  - `page` (integer, opsional, default `1`): Wajib `>= 1`.
+  - `limit` (integer, opsional, default `12`): Wajib `>= 1`, maks `50` (dipotong jika lebih).
+  - `status` (string, opsional): Filter status undangan. Nilai yang didukung: `all`, `draft`, `published`, `expired`. Nilai di luar itu menghasilkan `400 Bad Request`.
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Invitations retrieved successfully",
+  "data": {
+    "invitations": [
+      {
+        "id": 1,
+        "title": "The Wedding of Raka & Alya",
+        "slug": "raka-dan-alya",
+        "status": "draft",
+        "created_at": "2026-11-02T11:00:00Z",
+        "updated_at": "2026-11-02T11:00:00Z",
+        "template": {
+          "id": 15,
+          "name": "Complete Modern Wedding"
+        },
+        "event": {
+          "id": 1,
+          "name": "Resepsi Pernikahan",
+          "date": "2026-12-25",
+          "start_time": "10:00",
+          "end_time": "14:00",
+          "location": "Grand Ballroom Hotel Indonesia"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Daftar undangan milik partner berhasil diambil. |
+| `400 Bad Request` | Parameter `page`, `limit`, atau `status` tidak valid. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `403 Forbidden` | Role pengguna bukan `partner`. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Hanya menampilkan undangan milik partner yang bersangkutan (`WHERE user_id = $1`).
+  - Diurutkan berdasarkan `created_at DESC, id DESC`.
+
+#### 5.4.3 GET /api/v1/invitations/:id
+- **Akses**: Partner terautentikasi (`RequireRole("partner")`).
+- **Path Parameter**:
+  - `id` (integer, wajib): ID undangan (wajib `>= 1`).
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Invitation retrieved successfully",
+  "data": {
+    "invitation": {
+      "id": 1,
+      "title": "The Wedding of Raka & Alya",
+      "slug": "raka-dan-alya",
+      "status": "draft",
+      "published_version_id": null,
+      "published_at": null,
+      "expired_at": null,
+      "template": {
+        "id": 15,
+        "name": "Complete Modern Wedding",
+        "slug": "complete-modern-wedding"
+      },
+      "event": {
+        "id": 1,
+        "name": "Resepsi Pernikahan",
+        "description": "Dress code: Formal pastel",
+        "date": "2026-12-25",
+        "start_time": "10:00",
+        "end_time": "14:00",
+        "location": "Grand Ballroom Hotel Indonesia",
+        "address": "Jl. M.H. Thamrin No. 1, Jakarta",
+        "maps_url": "https://maps.google.com/..."
+      },
+      "created_at": "2026-11-02T11:00:00Z",
+      "updated_at": "2026-11-02T11:00:00Z"
+    }
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Detail undangan berhasil diambil. |
+| `400 Bad Request` | `:id` bukan integer positif. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `403 Forbidden` | Role pengguna bukan `partner`. |
+| `404 Not Found` | Undangan tidak ditemukan atau milik partner lain. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Undangan milik partner lain dibalas `404 Not Found` (bukan 403) sesuai aturan keamanan kepemilikan resource.
+
+#### 5.4.4 PATCH /api/v1/invitations/:id
+- **Akses**: Partner pemilik undangan (`RequireRole("partner")`).
+- **Path Parameter**:
+  - `id` (integer, wajib): ID undangan (wajib `>= 1`).
+- **Request Body** (minimal 1 field diisi):
+```json
+{
+  "title": "The Wedding of Raka & Alya - Resepsi",
+  "slug": "raka-dan-alya-resepsi",
+  "event": {
+    "name": "Resepsi Mewah",
+    "date": "2026-12-26",
+    "start_time": "11:00",
+    "end_time": "15:00",
+    "location": "The Ritz-Carlton",
+    "address": "Mega Kuningan, Jakarta",
+    "maps_url": "https://maps.google.com/test",
+    "description": "Dress code: Black Tie"
+  }
+}
+```
+- **Validasi Input**:
+  - Body tidak boleh kosong (`{}` atau `{"event":{}}` tanpa properti menghasilkan `400 Bad Request`).
+  - `template_id`: tidak dapat diubah setelah undangan dibuat. Jika dikirim berbeda dari template saat ini, menghasilkan `400 Bad Request` (`errors.template_id = "template_id cannot be changed"`).
+  - `title`: opsional, string tidak kosong, maksimum 255 karakter.
+  - `slug`: opsional, regex `^[a-z0-9]+(?:-[a-z0-9]+)*$`, maksimum 255 karakter.
+  - `event.name`: opsional, string tidak kosong, maksimum 255 karakter.
+  - `event.date`: opsional, format `YYYY-MM-DD`.
+  - `event.start_time` / `event.end_time`: opsional, format `HH:MM` atau `HH:MM:SS`, `end_time` wajib `>= start_time`.
+  - `event.location`: opsional, maksimum 255 karakter.
+- **Respons Sukses `200 OK`**: Mengembalikan objek undangan lengkap yang telah diperbarui (format sama seperti `GET /invitations/:id`).
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Undangan dan event berhasil diperbarui. |
+| `400 Bad Request` | Body kosong, `template_id` diubah, format tanggal/jam tidak valid, atau `end_time < start_time`. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `403 Forbidden` | Role pengguna bukan `partner`. |
+| `404 Not Found` | Undangan tidak ditemukan atau milik partner lain. |
+| `409 Conflict` | Undangan bukan berstatus `'draft'` (`errors.status = "invitation_is_not_draft"`), atau slug baru sudah digunakan oleh undangan lain (`errors.slug = "slug_already_taken"`). |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Hanya dapat dijalankan pada undangan berstatus `'draft'`. Undangan non-draft dibalas `409 Conflict`.
+  - Data event diperbarui secara atomik melalui join tabel relasi `invitation_events`.
+  - Kolom `updated_at` pada tabel `invitations` dan `events` ikut diperbarui ke waktu transaksi.
+
+#### 5.4.5 GET /api/v1/invitations/:id/content
+- **Akses**: Partner pemilik undangan (`RequireRole("partner")`).
+- **Path Parameter**:
+  - `id` (integer, wajib): ID undangan (wajib `>= 1`).
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Invitation content retrieved successfully",
+  "data": {
+    "invitation_id": 1,
+    "version": {
+      "id": 1,
+      "version_number": 1,
+      "status": "draft"
+    },
+    "template_id": 15,
+    "sections": [
+      {
+        "id": 6,
+        "name": "Cover",
+        "type": "cover",
+        "sort_order": 10,
+        "is_required": true,
+        "is_editable": true,
+        "settings": {
+          "theme": "sage",
+          "layout": "hero"
+        },
+        "fields": [
+          {
+            "id": 5,
+            "field_key": "groom-name",
+            "label": "Nama Mempelai Pria",
+            "field_type": "text",
+            "default_value": "Raka",
+            "value": "Raka Pratama",
+            "is_required": true,
+            "is_editable": true,
+            "sort_order": 10,
+            "validation_rules": {
+              "maxLength": 100
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Konten undangan berhasil diambil. |
+| `400 Bad Request` | `:id` bukan integer positif. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `403 Forbidden` | Role pengguna bukan `partner`. |
+| `404 Not Found` | Undangan tidak ditemukan atau milik partner lain. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Berlaku untuk undangan milik sendiri pada **semua status** (`draft`, `published`, `expired`).
+  - Mengembalikan versi kerja: versi `'draft'` jika ada, atau versi published (`published_version_id`) jika tidak ada draft aktif.
+  - Nilai field (`value`) digabungkan secara otomatis: jika belum ada nilai yang disimpan di `invitation_contents`, field `value` otomatis mengembalikan `default_value` dari `template_fields` (`COALESCE(ic.value, f.default_value)`).
+  - Sections dan fields diurutkan berdasarkan `sort_order ASC, id ASC`.
+
+#### 5.4.6 PATCH /api/v1/invitations/:id/content
+- **Akses**: Partner pemilik undangan (`RequireRole("partner")`).
+- **Path Parameter**:
+  - `id` (integer, wajib): ID undangan (wajib `>= 1`).
+- **Request Body**:
+```json
+{
+  "fields": [
+    {
+      "field_id": 5,
+      "value": "Raka Pratama"
+    },
+    {
+      "field_id": 6,
+      "value": "2026-11-20"
+    },
+    {
+      "field_id": 7,
+      "value": ""
+    }
+  ]
+}
+```
+- **Validasi Input**:
+  - `fields` (array, wajib): Berisi minimal 1 field dan maksimal 200 field. Kurang dari 1 atau lebih dari 200 menghasilkan `400 Bad Request`.
+  - Duplikasi `field_id` dalam satu request dilarang (menghasilkan `400 Bad Request`).
+  - Validasi field dieksekusi dalam **satu query** (`tf.id = ANY($1) AND ts.template_id = template_undangan`): field yang bukan milik template undangan tersebut ditolak dengan `400 Bad Request`.
+  - Field atau section dengan `is_editable = false` tidak dapat diubah (dibalas `400 Bad Request`).
+  - Batas panjang nilai: maksimal 5000 karakter (rune) untuk seluruh field.
+  - **Nilai Kosong**: Nilai `null` atau `""` menghapus baris dari tabel `invitation_contents` sehingga saat dibaca kembali via GET otomatis menampilkan `default_value` template. Tidak ada validasi format untuk nilai yang dikosongkan.
+  - **Validasi Format**: Nilai yang tidak kosong divalidasi terhadap `validation_rules` (`maxLength`, format `YYYY-MM-DD`, format `HH:mm`) atau tipe field (`date`, `time`).
+  - **Aturan `is_required`**: `is_required` **TIDAK** ditegakkan pada endpoint ini (draf diizinkan belum lengkap untuk mendukung *auto-save*). `is_required` baru ditegakkan saat publish (Fitur 4.1).
+  - **All-or-Nothing / Transaksi Rollback**: Jika salah satu field dalam batch tidak valid, seluruh batch dibatalkan dan tidak ada perubahan yang disimpan ke database.
+- **Respons Sukses `200 OK`**:
+```json
+{
+  "success": true,
+  "message": "Invitation content updated successfully",
+  "data": {
+    "updated_at": "2026-11-02T11:35:00Z",
+    "fields_updated": 3
+  }
+}
+```
+- **Status Code**:
+| Status Code | Penyebab |
+|---|---|
+| `200 OK` | Konten berhasil disimpan/diperbarui. |
+| `400 Bad Request` | Body JSON tidak valid, `fields` kosong atau > 200, duplikasi `field_id`, field bukan milik template, field/section tidak editable, panjang > 5000 karakter, atau melanggar `validation_rules`. |
+| `401 Unauthorized` | Pengguna belum login atau token tidak valid. |
+| `403 Forbidden` | Role pengguna bukan `partner`. |
+| `404 Not Found` | Undangan tidak ditemukan atau milik partner lain. |
+| `409 Conflict` | Undangan bukan berstatus `'draft'` (`errors.status = "invitation_is_not_draft"`), atau tidak ditemukan versi draft. |
+| `500 Internal Server Error` | Terjadi kesalahan database internal. |
+- **Catatan Perilaku**:
+  - Hanya operasi tulis pada undangan berstatus `'draft'` yang diizinkan (undangan non-draft dibalas `409 Conflict`).
+  - Menggunakan locking transaksi `SELECT ... FOR UPDATE` pada tabel `invitations` dan `invitation_versions` untuk mencegah *race condition*.
+  - Menggunakan query `INSERT ... ON CONFLICT (invitation_version_id, template_field_id) DO UPDATE` sehingga operasi bersifat idempoten.
+  - Memperbarui kolom `updated_at` pada `invitations` dan `invitation_versions`.
+
+---
+
+#### 5.4.7 Catatan Perubahan terhadap Draft Kontrak Awal
+
+Bagian ini mendokumentasikan penyesuaian antara rancangan awal kontrak dan implementasi riil pada modul undangan:
+1. **Model Relasi Event Terintegrasi (1 Undangan = 1 Event)**: Sesuai PRD v3.0, satu undangan digital mengelola satu acara utama. Data event dikirim langsung pada body `POST /invitations` dan diperbarui melalui `PATCH /invitations/:id`. Endpoint terpisah `GET /invitations/:id/events` dan `POST /invitations/:id/events` pada draft awal **dihapus dari kontrak**.
+2. **Metode Penyimpanan Konten (PATCH)**: Penyimpanan nilai konten template menggunakan `PATCH /api/v1/invitations/:id/content` (bukan `PUT`) untuk merefleksikan semantik *partial upsert* (memperbarui atau menghapus field yang dikirimkan tanpa mereset field lain yang sudah ada).
+3. **Penanda Spesifik Error Kuota/Paket pada 403**: Ketika partner gagal membuat undangan karena ketiadaan paket aktif atau kuota habis, respons 403 menyertakan penanda terstruktur `errors: {"package": "no_active_package"}` atau `errors: {"package": "quota_exhausted"}`.
+4. **Status Endpoint Belum Diimplementasikan**: Endpoint `GET /invitations/:id/versions` dan `POST /invitations/:id/publish` diberi tanda eksplisit *"Belum diimplementasikan"* karena implementasinya dijadwalkan pada potongan fitur berikutnya (Fitur 4.1).
+
+---
 
 ## 6. Database dan Migration
 
@@ -181,4 +822,901 @@ Sebuah fitur dianggap selesai apabila:
 
 ## 9. Status Persetujuan
 
-Dokumen ini adalah draft. Developer A dan Developer B harus meninjau pembagian endpoint, format response, autentikasi, dan aturan integrasi sebelum kontrak dianggap final.
+Dokumen ini adalah draft acuan bersama. Developer A dan Developer B harus meninjau pembagian endpoint, format response, autentikasi, dan aturan integrasi sebelum kontrak dianggap final.
+
+## 10. Modul RSVP
+
+### 10.1. Submit Public RSVP
+
+- **Method**: `POST`
+- **Path**: `/api/v1/public/invitations/:slug/rsvp`
+- **Autentikasi**: Publik (tanpa token autentikasi)
+- **Ukuran Body**: Maksimum 64 KB (dibatasi via `http.MaxBytesReader`)
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `name` | string | Ya | Nama tamu, di-trim, 1–255 karakter |
+| `attendance_status` | string | Ya | Status kehadiran: `"attending"` atau `"not_attending"` |
+| `number_of_guests` | integer | Ya | Jika `attending`: wajib 1–10. Jika `not_attending`: wajib 0 |
+| `message` | string | Tidak | Ucapan/pesan tamu, di-trim, maksimum 1000 karakter |
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "RSVP submitted successfully",
+  "data": {
+    "attendance_status": "attending",
+    "number_of_guests": 2,
+    "message": "Selamat berbahagia!",
+    "submitted_at": "2026-11-04T15:30:00Z"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request** (Validasi input / body gagal):
+  ```json
+  {
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+      "attendance_status": "attendance_status must be either 'attending' or 'not_attending'"
+    }
+  }
+  ```
+- **404 Not Found** (Slug tidak ditemukan, undangan berstatus draft, atau undangan expired):
+  ```json
+  {
+    "success": false,
+    "message": "Invitation not found"
+  }
+  ```
+
+#### Catatan Keamanan & Arsitektur
+- Validasi body dijalankan sebelum query database.
+- Respons 404 seragam untuk slug tidak ditemukan, draft, atau expired (anti-enumerasi).
+- Setiap pengiriman form membuat satu record tamu baru (`guests`) dengan `unique_token` acak (32 byte hex via `crypto/rand`) dan satu record `rsvps` dalam satu transaksi database atomik.
+- Token tidak pernah dikembalikan ke client maupun dicatat ke log aplikasi.
+- Backend menyimpan `name` dan `message` apa adanya tanpa HTML sanitization; escaping saat render adalah tanggung jawab frontend.
+- Endpoint publik belum memiliki rate limiting dan rawan spam (setiap submit membuat baris tamu); koordinasi dibutuhkan dengan koordinator backend (Catur).
+
+---
+
+### 10.2. Get Invitation RSVPs (Dashboard Partner)
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/rsvps`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE id = $1 AND user_id = $2`)
+
+#### Query Parameters
+
+| Parameter | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | `1` | Nomor halaman (minimal 1) |
+| `limit` | integer | `12` | Jumlah per halaman (maksimum 50; nilai > 50 dipotong ke 50) |
+| `status` | string | - | Filter kehadiran: `"attending"` atau `"not_attending"` |
+| `search` | string | - | Pencarian nama tamu (case-insensitive ILIKE, maksimum 100 karakter) |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "RSVP list retrieved successfully",
+  "data": {
+    "summary": {
+      "total_responses": 3,
+      "attending_count": 2,
+      "not_attending_count": 1,
+      "total_guests": 5
+    },
+    "rsvps": [
+      {
+        "id": 142,
+        "name": "Budi Santoso",
+        "attendance_status": "attending",
+        "number_of_guests": 2,
+        "message": "Selamat berbahagia!",
+        "submitted_at": "2026-11-04T15:30:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 3,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: ID undangan tidak valid, filter `status` tidak valid, atau `search` > 100 karakter.
+- **401 Unauthorized**: Tidak menyertakan token otentikasi atau token tidak valid.
+- **403 Forbidden**: Pengguna terautentikasi tetapi memiliki role selain `partner`.
+- **404 Not Found**: Undangan tidak ditemukan atau bukan milik partner yang sedang login.
+
+#### Catatan Keamanan & Arsitektur
+- `summary` dihitung atas seluruh RSVP undangan dan tidak terpengaruh oleh filter `status` maupun `search`.
+- `total_guests` merupakan penjumlahan `SUM(number_of_guests)` khusus untuk tamu dengan status `"attending"`.
+- Response tidak mengekspos `unique_token`, `phone`, `email`, `category`, atau `invitation_id`.
+
+---
+
+### 10.3. Delete Invitation RSVP
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/rsvps/:rsvp_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE i.id = $id AND i.user_id = $userID`)
+
+#### Path Parameters
+
+| Parameter | Tipe | Keterangan |
+| :--- | :--- | :--- |
+| `id` | integer | ID undangan (wajib, integer positif) |
+| `rsvp_id` | integer | ID RSVP yang akan dihapus (wajib, integer positif) |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "RSVP deleted successfully"
+}
+```
+
+#### Response Error
+
+- **401 Unauthorized**: Tidak menyertakan token otentikasi atau token tidak valid (middleware).
+- **403 Forbidden**: Pengguna terautentikasi tetapi memiliki role selain `partner` (middleware).
+- **400 Bad Request**: `:id` atau `:rsvp_id` tidak valid (bukan angka positif atau melebihi kapasitas int64).
+  ```json
+  {
+    "success": false,
+    "message": "Invalid RSVP ID",
+    "errors": {
+      "rsvp_id": "rsvp id must be a positive integer"
+    }
+  }
+  ```
+- **404 Not Found**: Undangan atau RSVP tidak ditemukan, atau bukan milik partner yang sedang login.
+  ```json
+  {
+    "success": false,
+    "message": "RSVP not found"
+  }
+  ```
+
+#### Catatan Keamanan & Arsitektur
+- Urutan evaluasi: middleware otentikasi (401) dan role (403) dijalankan terlebih dahulu, dilanjutkan dengan validasi parameter ID di handler (400), lalu verifikasi keberadaan serta kepemilikan di SQL (404).
+- Menghapus RSVP dilakukan dengan menghapus baris tamu terkait (`guests`), sehingga baris `rsvps` ikut terhapus otomatis melalui `ON DELETE CASCADE` untuk mencegah baris tamu yatim (orphaned guest).
+- Baris `guest_media` milik tamu ikut terhapus (`CASCADE`), sedangkan pesan pada `guestbook_messages` milik tamu tetap ada dengan kolom `guest_id` disetel `NULL` (`SET NULL`).
+- Operasi ini bersifat permanen (*hard delete*) dan tidak dapat dibatalkan (*cannot be undone*).
+- Berlaku untuk undangan dengan status apa pun (`draft`, `published`, `expired`) selama dimiliki oleh partner yang bersangkutan.
+- Anti-enumerasi: Jika `:rsvp_id` tidak ditemukan, milik undangan lain, atau milik partner lain, backend memberikan respons seragam 404 tanpa membocorkan eksistensi data.
+
+---
+
+## 11. Public Invitation
+
+### 11.1. Get Public Invitation Content
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug`
+- **Autentikasi**: Tidak ada (endpoint publik tanpa login)
+- **Otorisasi**: Publik untuk undangan berstatus `'published'` dan belum kedaluwarsa (`expired_at IS NULL` atau di masa depan)
+
+#### Path Parameters
+
+| Parameter | Tipe | Keterangan |
+| :--- | :--- | :--- |
+| `slug` | string | Slug unik undangan yang telah dipublikasikan |
+
+#### Response Headers
+
+- **200 OK**: `Cache-Control: public, max-age=60`
+- **404 Not Found**: `Cache-Control: no-store`
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation retrieved successfully",
+  "data": {
+    "invitation": {
+      "title": "The Wedding of Romeo & Juliet",
+      "slug": "romeo-juliet",
+      "published_at": "2026-11-05T10:00:00Z"
+    },
+    "template": {
+      "name": "Elegance Floral",
+      "slug": "elegance-floral"
+    },
+    "event": {
+      "name": "Akad & Resepsi",
+      "date": "2026-12-31",
+      "start_time": "10:00:00",
+      "end_time": "14:00:00",
+      "location": "Grand Ballroom Hotel Mulia",
+      "address": "Jl. Asia Afrika, Senayan, Jakarta",
+      "maps_url": "https://maps.google.com/?q=-6.215,106.798",
+      "description": "Mohon hadir 15 menit sebelum acara dimulai."
+    },
+    "sections": [
+      {
+        "id": 1,
+        "name": "Cover",
+        "type": "cover",
+        "sort_order": 10,
+        "settings": {
+          "theme": "light"
+        },
+        "fields": [
+          {
+            "id": 1,
+            "field_key": "bride_name",
+            "label": "Nama Mempelai Wanita",
+            "field_type": "text",
+            "value": "Juliet",
+            "sort_order": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### Response Error (404 Seragam)
+
+Semua skenario kegagalan menghasilkan status 404 dan body seragam berikut tanpa membocorkan eksistensi maupun status internal data:
+- Slug tidak ditemukan
+- Undangan masih berstatus `'draft'`
+- Undangan telah kedaluwarsa (`expired_at <= CURRENT_TIMESTAMP`)
+- Slug tidak valid (kosong atau melebihi 255 karakter)
+- Anomali data internal (tidak ada event terasosiasi atau versi terbit tidak valid)
+
+```json
+{
+  "success": false,
+  "message": "Invitation not found"
+}
+```
+
+#### Catatan Keamanan, Performa & Arsitektur
+- **Nilai Efektif**: Nilai setiap field diambil dari konten versi yang dipublikasikan (`invitations.published_version_id`). Jika nilai konten kosong atau hanya whitespace, backend otomatis menggunakan fallback ke `template_fields.default_value`.
+- **Informasi yang Dikecualikan**: Response secara ketat tidak mengekspos data internal partner (`user_id`, email, profile), data paket/kuota, ID internal (`invitation_id`, `version_id`, `content_id`), status draft, readiness, maupun `default_value` mentah dan `validation_rules`.
+- **Caching**: Respons 200 dilengkapi header `Cache-Control: public, max-age=60` guna meredam lonjakan beban database saat undangan dibuka oleh banyak tamu secara simultan. Respons 404 menggunakan `Cache-Control: no-store`.
+- **Escaping HTML & Keamanan XSS**: Nilai konten partner dikirimkan apa adanya dalam representasi string JSON UTF-8. Sanitasi XSS dan escaping HTML adalah tanggung jawab frontend saat me-render nilai ke Document Object Model (DOM).
+- **Risiko Tanpa Rate Limiting**: Endpoint publik ini belum memiliki mekanisme rate limiting di tingkat backend Go. Risiko yang ada mencakup potensi web scraping massal atau automated denial-of-service (DoS). Diperlukan koordinasi lebih lanjut dengan Catur untuk penambahan middleware rate limiting (misalnya token bucket / Redis limiter) pada level API gateway atau reverse proxy.
+
+---
+
+## 12. Guestbook
+
+Modul Guestbook memfasilitasi tamu untuk mengirimkan doa dan ucapan pada undangan pernikahan serta menyediakan antarmuka moderasi bagi partner pemilik undangan.
+
+### 12.1. Submit Public Guestbook Message
+
+- **Method**: `POST`
+- **Path**: `/api/v1/public/invitations/:slug/guestbook`
+- **Autentikasi**: Tidak ada (endpoint publik)
+- **Body Limit**: Maksimal 64 KB (`http.MaxBytesReader`)
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `name` | string | Ya | Nama tamu (1 - 255 karakter rune, whitespace di-trim) |
+| `message` | string | Ya | Isi ucapan/doa (1 - 1000 karakter rune, whitespace di-trim) |
+
+Field lain dalam payload (termasuk status) diabaikan secara ketat.
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Guestbook message submitted successfully and is awaiting moderation",
+  "data": {
+    "status": "pending"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: Validasi gagal (nama/pesan kosong atau melebihi batas panjang, body rusak / >64KB).
+  ```json
+  {
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+      "name": "name is required",
+      "message": "message must not exceed 1000 characters"
+    }
+  }
+  ```
+- **404 Not Found**: Undangan tidak ditemukan, masih berstatus `'draft'`, atau telah kedaluwarsa (`expired_at <= CURRENT_TIMESTAMP`). Header: `Cache-Control: no-store`.
+  ```json
+  {
+    "success": false,
+    "message": "Invitation not found"
+  }
+  ```
+
+---
+
+### 12.2. Get Public Guestbook Messages
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug/guestbook`
+- **Autentikasi**: Tidak ada (endpoint publik)
+- **Otorisasi**: Hanya menampilkan pesan dengan status `'approved'` dari undangan berstatus `'published'` dan belum expired.
+
+#### Query Parameters
+
+| Parameter | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `page` | integer | `1` | Nomor halaman (minimal 1) |
+| `limit` | integer | `12` | Jumlah item per halaman (maksimal 50, kelebihan otomatis dipotong ke 50) |
+
+#### Response Headers
+
+- **200 OK**: `Cache-Control: public, max-age=60`
+- **404 Not Found**: `Cache-Control: no-store`
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Guestbook messages retrieved successfully",
+  "data": {
+    "messages": [
+      {
+        "guest_name": "Budi Santoso",
+        "message": "Selamat menempuh hidup baru Romeo & Juliet!",
+        "created_at": "2026-11-05T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+*Catatan*: Dilarang mengekspos ID pesan, `guest_id`, `invitation_id`, `moderated_by`, `moderated_at`, maupun `status`.
+
+---
+
+### 12.3. Get Partner Guestbook Messages
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/guestbook`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE i.id = $id AND i.user_id = $userID`). Berlaku untuk semua status undangan (`draft`, `published`, `expired`).
+
+#### Query Parameters
+
+| Parameter | Tipe | Default | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `status` | string | - | Filter status opsional: `pending`, `approved`, `rejected`, `hidden`. Nilai lain ditolak 400. |
+| `page` | integer | `1` | Nomor halaman (minimal 1) |
+| `limit` | integer | `12` | Jumlah item per halaman (maksimal dipotong ke 50) |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Guestbook messages retrieved successfully",
+  "data": {
+    "summary": {
+      "total": 10,
+      "pending": 5,
+      "approved": 3,
+      "rejected": 1,
+      "hidden": 1
+    },
+    "messages": [
+      {
+        "id": 101,
+        "guest_name": "Budi Santoso",
+        "message": "Selamat menempuh hidup baru!",
+        "status": "pending",
+        "moderated_at": null,
+        "created_at": "2026-11-05T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 12,
+      "total": 10,
+      "total_pages": 1
+    }
+  }
+}
+```
+
+*Catatan*: `summary` dihitung atas seluruh pesan undangan tersebut dan tidak dipengaruhi oleh query parameter `status`.
+
+---
+
+### 12.4. Update Guestbook Message Status (Moderate)
+
+- **Method**: `PATCH`
+- **Path**: `/api/v1/invitations/:id/guestbook/:message_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+
+#### Request Body
+
+```json
+{
+  "status": "approved"
+}
+```
+*Nilai status yang sah*: `"pending"`, `"approved"`, `"rejected"`, `"hidden"`.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Guestbook message status updated successfully",
+  "data": {
+    "id": 101,
+    "guest_name": "Budi Santoso",
+    "message": "Selamat menempuh hidup baru!",
+    "status": "approved",
+    "moderated_at": "2026-11-05T11:00:00Z",
+    "created_at": "2026-11-05T10:00:00Z"
+  }
+}
+```
+
+---
+
+### 12.5. Delete Guestbook Message
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/guestbook/:message_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Message deleted successfully"
+}
+```
+
+---
+
+### 12.6. Catatan Keamanan & Arsitektur Guestbook
+- **Alur Moderasi**: Semua ucapan dari endpoint publik berstatus awal `'pending'`. Pesan berstatus `'pending'`, `'rejected'`, atau `'hidden'` terfilter secara mutlak di SQL sehingga tidak akan pernah tampil pada endpoint publik.
+- **Opsi Asosiasi Tamu (Opsi B)**: Pesan publik disimpan langsung dengan `guest_name` dan `guest_id` disetel `NULL`. Hal ini memisahkan data ucapan tamu dari baris RSVP dan mencegah data sampah di tabel `guests`.
+- **Urutan Evaluasi Partner**: Middleware otentikasi (401) dan role (403) dijalankan terlebih dahulu, kemudian validasi parameter ID (400 untuk ID tidak valid atau melebihi kapasitas int64), validasi body (400), dan verifikasi kepemilikan di SQL (404 seragam jika pesan atau undangan tidak ditemukan/bukan milik partner).
+- **Hard Delete**: Penghapusan pesan guestbook oleh partner bersifat permanen (*hard delete*) dan idempoten (pemanggilan kedua mengembalikan 404).
+- **Sanitasi HTML & Escaping**: Pesan disimpan apa adanya dalam representasi UTF-8. Sanitasi XSS menjadi tanggung jawab renderer frontend sebelum dimasukkan ke dalam DOM.
+- **Risiko Tanpa Rate Limiting**: Tidak adanya rate limiter pada endpoint publik berisiko menimbulkan spam pengiriman ucapan. Default status `'pending'` berfungsi sebagai mitigasi awal agar spam tidak langsung tampil ke publik. Koordinasi lebih lanjut dengan Catur diperlukan untuk menerapkan IP rate limiting di API Gateway.
+
+---
+
+## 13. Invitation Gifts
+
+Modul Invitation Gifts memfasilitasi partner pengelola undangan untuk menambahkan dan mengelola informasi hadiah digital (transfer bank, e-wallet, kado fisik, atau opsi lainnya) serta menyediakan endpoint publik terpisah bagi para tamu untuk melihat informasi hadiah yang aktif.
+
+### 13.1. Get Partner Invitation Gifts
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/gifts`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (`WHERE i.id = $id AND i.user_id = $userID`). Berlaku untuk semua status undangan (`draft`, `published`, `expired`).
+- **Urutan**: `sort_order ASC, id ASC`.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation gifts retrieved successfully",
+  "data": [
+    {
+      "id": 1,
+      "gift_type": "bank_transfer",
+      "provider_name": "BCA",
+      "account_name": "Romeo Montague",
+      "account_number": "1234567890",
+      "wallet_identifier": null,
+      "instructions": null,
+      "sort_order": 0,
+      "is_active": true,
+      "created_at": "2026-11-05T10:00:00Z",
+      "updated_at": "2026-11-05T10:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### 13.2. Create Partner Invitation Gift
+
+- **Method**: `POST`
+- **Path**: `/api/v1/invitations/:id/gifts`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan. Status undangan apa pun boleh ditambahkan hadiah (`draft`, `published`, `expired`).
+- **Body Limit**: Maksimal 64 KB (`http.MaxBytesReader`). Field lain di luar spesifikasi diabaikan.
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `gift_type` | string | Ya | Whitelist: `bank_transfer`, `e_wallet`, `physical_gift`, `other` |
+| `provider_name` | string | Bersyarat | Maks 150 rune. Wajib untuk `bank_transfer` dan `e_wallet` |
+| `account_name` | string | Bersyarat | Maks 255 rune. Wajib untuk `bank_transfer` dan `e_wallet` |
+| `account_number` | string | Bersyarat | Maks 255 rune. Format `^[0-9 \-+]+$` (min 1 digit). Wajib untuk `bank_transfer`. Alternatif wajib untuk `e_wallet` |
+| `wallet_identifier` | string | Bersyarat | Maks 255 rune. Format `^[0-9 \-+]+$` (min 1 digit). Alternatif wajib untuk `e_wallet` bila `account_number` tidak diisi |
+| `instructions` | string | Bersyarat | Maks 2000 rune. Wajib untuk `physical_gift` dan `other` |
+| `sort_order` | integer | Tidak | Default `0`. Harus `>= 0` |
+| `is_active` | boolean | Tidak | Default `true` |
+
+*Catatan Sanitasi String*: Semua string dilakukan `TrimSpace`. String kosong setelah trim disimpan sebagai `NULL`.
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Invitation gift created successfully",
+  "data": {
+    "id": 1,
+    "gift_type": "bank_transfer",
+    "provider_name": "BCA",
+    "account_name": "Romeo Montague",
+    "account_number": "1234567890",
+    "wallet_identifier": null,
+    "instructions": null,
+    "sort_order": 0,
+    "is_active": true,
+    "created_at": "2026-11-05T10:00:00Z",
+    "updated_at": "2026-11-05T10:00:00Z"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: Validasi gagal (tipe tidak dikenal, format nomor tidak sah, field wajib kosong, teks terlalu panjang, body bukan JSON / > 64KB).
+- **404 Not Found**: Undangan tidak ditemukan atau bukan milik partner (`"message": "Invitation not found"`).
+- **409 Conflict**: Batas kuota 10 hadiah per undangan telah tercapai.
+  ```json
+  {
+    "success": false,
+    "message": "Maximum number of gifts reached",
+    "errors": {
+      "gifts": "gift_limit_reached"
+    }
+  }
+  ```
+
+---
+
+### 13.3. Update Partner Invitation Gift (Partial Update)
+
+- **Method**: `PATCH`
+- **Path**: `/api/v1/invitations/:id/gifts/:gift_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+- **Body Limit**: Maksimal 64 KB. Body kosong atau tanpa field yang dapat diupdate mengembalikan `400 Bad Request`.
+- **Merge Validation**: Data baru digabungkan (*merged*) dengan data yang ada di database di bawah kunci baris `FOR UPDATE`. Validasi kelengkapan aturan tipe dilakukan terhadap hasil akhir penggabungan (*merged state*).
+- Menghapus field opsional: Kirimkan nilai `""` atau `null`.
+
+#### Request Body (Contoh)
+
+```json
+{
+  "account_name": "Romeo & Juliet",
+  "is_active": false
+}
+```
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation gift updated successfully",
+  "data": {
+    "id": 1,
+    "gift_type": "bank_transfer",
+    "provider_name": "BCA",
+    "account_name": "Romeo & Juliet",
+    "account_number": "1234567890",
+    "wallet_identifier": null,
+    "instructions": null,
+    "sort_order": 0,
+    "is_active": false,
+    "created_at": "2026-11-05T10:00:00Z",
+    "updated_at": "2026-11-05T10:05:00Z"
+  }
+}
+```
+
+#### Response Error
+
+- **400 Bad Request**: Validasi gagal atas data hasil merge (misal mengubah `gift_type` ke `bank_transfer` padahal `account_number` belum ada / di-null-kan).
+- **404 Not Found**: Hadiah atau undangan tidak ditemukan / bukan milik partner (`"message": "Gift not found"`).
+
+---
+
+### 13.4. Delete Partner Invitation Gift
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/gifts/:gift_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan.
+- Bersifat permanen (*hard delete*). Pemanggilan kedua mengembalikan 404.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Gift deleted successfully"
+}
+```
+
+---
+
+### 13.5. Get Public Invitation Gifts
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug/gifts`
+- **Autentikasi**: Tidak ada (endpoint publik).
+- **Otorisasi**: Hanya undangan berstatus `'published'` dan belum expired (`expired_at IS NULL OR expired_at > CURRENT_TIMESTAMP`).
+- **Filter**: Hanya baris aktif (`is_active = TRUE`), diurutkan `sort_order ASC, id ASC`.
+- **Privasi**: Dilarang menampilkan `id`, `invitation_id`, `is_active`, `created_at`, `updated_at`, maupun identitas partner.
+
+#### Response Headers
+
+- **200 OK**: `Cache-Control: public, max-age=60`
+- **404 Not Found**: `Cache-Control: no-store`
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation gifts retrieved successfully",
+  "data": {
+    "gifts": [
+      {
+        "gift_type": "bank_transfer",
+        "provider_name": "BCA",
+        "account_name": "Romeo Montague",
+        "account_number": "1234567890",
+        "wallet_identifier": null,
+        "instructions": null,
+        "sort_order": 0
+      }
+    ]
+  }
+}
+```
+
+*Catatan*: Bila undangan tidak memiliki hadiah aktif, response mengembalikan 200 OK dengan `"gifts": []`.
+
+#### Response 404 Not Found
+
+Untuk slug yang tidak valid, tidak ditemukan, berstatus `'draft'`, atau `'expired'`:
+
+```json
+{
+  "success": false,
+  "message": "Invitation not found"
+}
+```
+
+---
+
+### 13.6. Catatan Keamanan & Arsitektur Invitation Gifts
+
+1. **Aturan Wajib per Tipe Hadiah**:
+   - `bank_transfer`: Wajib `provider_name`, `account_name`, `account_number`.
+   - `e_wallet`: Wajib `provider_name`, `account_name`, dan minimal salah satu dari `wallet_identifier` atau `account_number`.
+   - `physical_gift`: Wajib `instructions`.
+   - `other`: Wajib `instructions`.
+2. **Format Nomor Ketat**:
+   - `account_number` dan `wallet_identifier` divalidasi dengan regex `^[0-9 \-+]+$` dan harus mengandung minimal satu digit angka (karakter huruf atau simbol berbahaya ditolak).
+3. **Batas Maksimal 10 Hadiah & Transaksi Konkuren**:
+   - Batas maksimal 10 hadiah per undangan mencakup seluruh baris (baik aktif maupun nonaktif).
+   - Validasi batas 10 dilakukan di dalam transaksi dengan `SELECT ... FROM invitations WHERE id = $1 AND user_id = $2 FOR UPDATE` untuk mengunci baris undangan, mencegah *race condition* penambahan hadiah konkuren melampaui 10. Jika sudah 10, mengembalikan HTTP 409 Conflict dengan error `{"gifts":"gift_limit_reached"}`.
+4. **Fleksibilitas Status Undangan untuk Partner**:
+   - Partner diizinkan membuat, mengubah, atau menghapus hadiah pada undangan berstatus apa pun (`draft`, `published`, `expired`).
+5. **Respon Error Seragam (404 Uniform)**:
+   - Endpoint partner mengembalikan pesan seragam `"Invitation not found"` atau `"Gift not found"` tanpa membocorkan eksistensi data milik partner lain.
+   - Endpoint publik mengembalikan pesan seragam `"Invitation not found"` dengan header `Cache-Control: no-store` untuk slug yang tidak ada, draft, maupun expired.
+6. **Perilaku Cache Publik**:
+   - Endpoint publik menyertakan header `Cache-Control: public, max-age=60`. Perubahan nomor rekening atau status hadiah oleh partner dapat memerlukan waktu propagasi hingga 60 detik sebelum tampil di browser tamu/CDN edge cache.
+7. **Penundaan Fitur QRIS & Gambar**:
+   - QRIS dinamis maupun statis melalui upload gambar ditunda ke rilis berikutnya. Tidak ada relasi `storage_files`, endpoint upload, atau migrasi database baru pada fase ini.
+8. **Sanitasi HTML & Escaping**:
+   - Data teks (instruksi, nama pemilik rekening, dsb.) disimpan apa adanya dalam encoding UTF-8. Renderer frontend bertanggung jawab melakukan HTML-escaping untuk mencegah XSS.
+9. **Kerahasiaan Data & Audit Log**:
+   - Nomor rekening, nomor e-wallet, nama pemilik rekening, dan instruksi dilarang dicatat ke dalam log server backend (`log.Printf`).
+10. **Risiko Scraping Tanpa Rate Limiting**:
+    - Endpoint publik `GET /api/v1/public/invitations/:slug/gifts` belum dilengkapi rate limiter. Terdapat potensi scraping nomor rekening/e-wallet oleh bot. Rekomendasi mitigasi ke Catur adalah penerapan rate limiter di API Gateway / Cloudflare WAF.
+
+---
+
+## 14. Template Write (Management)
+
+Modul Template Write memfasilitasi peran Designer dan Admin untuk membuat template baru, memperbarui metadata template, dan menghapus template berstatus draft.
+
+### 14.1. Create Template
+
+- **Method**: `POST`
+- **Path**: `/api/v1/templates`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("designer", "admin")`)
+- **Otorisasi**: Designer dan Admin.
+- **Body Limit**: Maksimal 64 KB (`http.MaxBytesReader`).
+- **Aturan Kepemilikan & Status**:
+  - Kolom `status` selalu di-set `"draft"` di server (input status dari body diabaikan).
+  - Kolom `designer_id` diambil dari identitas token terautentikasi pengguna (`userID` context). Jika Admin yang membuat, `designer_id` otomatis diisi dengan ID akun admin tersebut.
+
+#### Request Body
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `name` | string | Ya | Nama template (1 - 255 rune, whitespace di-trim, tidak boleh kosong) |
+| `category_id` | integer | Ya | ID kategori template (harus ada di tabel `template_categories`) |
+| `slug` | string | Tidak | Format `^[a-z0-9]+(?:-[a-z0-9]+)*$` (maks 255). Jika tidak diisi, otomatis dibuat dari `name` + sufiks hex acak |
+| `description` | string | Tidak | Deskripsi template |
+| `price` | number | Tidak | Harga template (default `0`, harus non-negatif finite number) |
+| `style` | string | Tidak | Gaya desain template (maks 100 karakter) |
+| `color` | string | Tidak | Skema warna template (maks 100 karakter) |
+| `thumbnail_file_id` | integer | Tidak | ID file penyimpanan thumbnail (jika diisi harus ada di `storage_files`) |
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Template created successfully",
+  "data": {
+    "id": 10,
+    "category_id": 1,
+    "designer_id": 2,
+    "name": "Rustic Floral Wedding",
+    "slug": "rustic-floral-wedding-a1b2c3",
+    "description": "Tema elegan bernuansa bunga rustic",
+    "thumbnail_file_id": 10,
+    "price": "150000.00",
+    "style": "Rustic",
+    "color": "Terracotta",
+    "status": "draft",
+    "created_at": "2026-11-05T16:00:00Z",
+    "updated_at": "2026-11-05T16:00:00Z"
+  }
+}
+```
+
+#### Response Error
+- **400 Bad Request**: Validasi gagal (nama kosong / > 255 rune, category_id tidak valid atau tidak ditemukan di database, format slug salah, price negatif, style/color > 100 rune, `thumbnail_file_id` tidak ada di `storage_files`).
+- **401 Unauthorized**: Token hilang atau tidak valid.
+- **403 Forbidden**: Role bukan designer atau admin (misal: partner).
+- **409 Conflict**: Custom slug sudah digunakan oleh template lain (`{"slug": "slug_already_taken"}`).
+
+---
+
+### 14.2. Update Template (Partial Update)
+
+- **Method**: `PATCH`
+- **Path**: `/api/v1/templates/:id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("designer", "admin")`)
+- **Otorisasi**:
+  - Designer: Hanya dapat memperbarui template miliknya sendiri.
+  - Admin: Dapat memperbarui template milik desainer mana pun.
+  - Template milik designer lain (jika diakses designer) menghasilkan 404 seragam.
+- **Validasi Status**:
+  - Hanya dapat memperbarui template yang berstatus `"draft"` atau `"revision"`.
+  - Jika berstatus `"publish"` atau status lainnya, mengembalikan `409 Conflict`.
+- **Aturan DTO & Null Handling**:
+  - Field tidak dikirim = tidak berubah.
+  - Nilai `null` pada field opsional (`description`, `style`, `color`, `thumbnail_file_id`) = mengosongkan field tersebut menjadi `NULL` di database.
+  - Nilai `null` pada field wajib (`name`, `category_id`, `price`, `slug`) = ditolak dengan `400 Bad Request`.
+  - Field `status`, `designer_id`, dan `id` diabaikan (tidak dapat diubah via PATCH).
+  - Body kosong `{}` = ditolak dengan `400 Bad Request`.
+  - Memperbarui kolom `updated_at = CURRENT_TIMESTAMP`.
+
+#### Request Body (Contoh)
+
+```json
+{
+  "name": "Rustic Floral Wedding v2",
+  "price": 175000,
+  "style": null
+}
+```
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Template updated successfully",
+  "data": {
+    "id": 10,
+    "category_id": 1,
+    "designer_id": 2,
+    "name": "Rustic Floral Wedding v2",
+    "slug": "rustic-floral-wedding-a1b2c3",
+    "description": "Tema elegan bernuansa bunga rustic",
+    "thumbnail_file_id": 10,
+    "price": "175000.00",
+    "style": null,
+    "color": "Terracotta",
+    "status": "draft",
+    "created_at": "2026-11-05T16:00:00Z",
+    "updated_at": "2026-11-05T16:25:00Z"
+  }
+}
+```
+
+#### Response Error
+- **400 Bad Request**: ID tidak valid, body kosong, null pada field wajib, format salah, atau `thumbnail_file_id` tidak ada di `storage_files`.
+- **401 Unauthorized**: Tanpa token.
+- **403 Forbidden**: Role partner.
+- **404 Not Found**: Template tidak ditemukan atau bukan milik designer.
+- **409 Conflict**: Status bukan draft/revision (`"status": "template_status_not_editable"`), atau slug baru bertabrakan dengan template lain.
+
+---
+
+### 14.3. Delete Template
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/templates/:id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("designer", "admin")`)
+- **Otorisasi**: Designer (hanya miliknya), Admin (siapa pun).
+- **Aturan Hapus**:
+  - Hanya template berstatus `"draft"` yang boleh dihapus. Status selain draft mengembalikan `409 Conflict`.
+  - Template yang memiliki sections (`template_sections`) atau assets (`template_assets`) internal diizinkan dihapus secara atomik dan bersih via `ON DELETE CASCADE`.
+  - Template yang dirujuk oleh tabel domain eksternal (`invitations`, `package_templates`, atau `invitation_favorites`) **DITOLAK** dengan `409 Conflict`.
+  - Penghapusan kedua kali mengembalikan `404 Not Found`.
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Template deleted successfully"
+}
+```
+
+#### Response Error
+- **400 Bad Request**: ID tidak valid.
+- **401 Unauthorized**: Tanpa token.
+- **403 Forbidden**: Role partner.
+- **404 Not Found**: Template tidak ditemukan atau bukan milik designer.
+- **409 Conflict**: Status bukan draft atau template sedang dirujuk oleh undangan/paket/favorit.
+
+
+
