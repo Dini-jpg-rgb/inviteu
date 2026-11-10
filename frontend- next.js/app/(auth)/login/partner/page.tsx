@@ -4,16 +4,17 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { AuthLayout, GoogleIcon, EyeIcon } from "../../components/AuthLayout";
+import { AuthSplitLayout } from "../../components/AuthSplitLayout";
+import { GoogleIcon } from "../../components/AuthLayout";
 
-function PartnerLoginForm() {
+function LoginFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl");
+  const callbackUrl = searchParams?.get("callbackUrl") || "/dashboard";
 
   const { login, isLoading } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,66 +23,89 @@ function PartnerLoginForm() {
     e.preventDefault();
     setError(null);
 
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanIdentifier = identifier.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    if (!cleanEmail || !cleanPassword) {
-      setError("Email dan password wajib diisi");
+    if (!cleanIdentifier || !cleanPassword) {
+      setError("Email atau username dan password wajib diisi");
       return;
     }
 
-    // Login khusus peran Partner (Isolasi Ketat Role)
-    const res = await login(cleanEmail, cleanPassword, true, "partner");
+    const res = await login(cleanIdentifier, cleanPassword, true, "partner");
 
     if (res.success) {
-      router.push(callbackUrl || "/dashboard");
+      router.push(callbackUrl);
     } else {
       setError(res.message || "Gagal masuk. Periksa kembali email dan password Anda.");
     }
   };
 
   return (
-    <AuthLayout activeRole="partner">
+    <AuthSplitLayout
+      bannerTitle="Satu link, satu cerita."
+      bannerSubtitle="Buat dan bagikan invitation digital untuk klienmu."
+      portalLabel="Portal Partner"
+      currentRole="partner"
+      showRoleSwitcher={true}
+    >
       {/* Title & Subtitle */}
-      <div className="text-center mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight">
-          Masuk ke InviteU
+      <div className="text-center mb-3">
+        <h1 className="font-serif text-xl sm:text-2xl font-bold text-zinc-900 tracking-tight leading-tight">
+          Selamat datang kembali
         </h1>
-        <p className="text-xs text-zinc-500 mt-1.5">
-          Kelola dan bagikan undangan klienmu
+        <p className="text-[11px] text-zinc-500 font-normal mt-0.5">
+          Masuk untuk mengelola invitation klienmu
         </p>
       </div>
 
-      {/* Error Message Alert */}
+      {/* Error Alert */}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-          <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="mb-2.5 p-2 px-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2 shadow-2xs">
+          <svg className="w-4 h-4 shrink-0 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span className="leading-relaxed">{error}</span>
+          <div className="flex-1 leading-snug">
+            <span>{error}</span>
+            {error.includes("Admin") && (
+              <Link
+                href="/login/admin"
+                className="block mt-1 font-bold text-red-900 hover:text-black underline"
+              >
+                → Buka Halaman Login Admin Sekarang
+              </Link>
+            )}
+            {error.includes("Designer") && (
+              <Link
+                href="/login/designer"
+                className="block mt-1 font-bold text-red-900 hover:text-black underline"
+              >
+                → Buka Halaman Login Designer Sekarang
+              </Link>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Login Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Email Field */}
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-2.5">
+        {/* Email atau Username */}
         <div>
-          <label className="block text-xs font-medium text-zinc-700 mb-1.5">
-            Email
+          <label className="block text-[11px] font-semibold text-zinc-700 mb-0.5">
+            Email atau Username
           </label>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="dwimahardika@email.com"
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="benabednego@email.com"
             required
-            className="w-full rounded-md border border-zinc-200 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all"
+            className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#f5a638] focus:border-transparent transition"
           />
         </div>
 
-        {/* Password Field */}
+        {/* Password */}
         <div>
-          <label className="block text-xs font-medium text-zinc-700 mb-1.5">
+          <label className="block text-[11px] font-semibold text-zinc-700 mb-0.5">
             Password
           </label>
           <div className="relative">
@@ -91,90 +115,74 @@ function PartnerLoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="........"
               required
-              className="w-full rounded-md border border-zinc-200 bg-white px-3.5 py-2.5 pr-10 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-all"
+              className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-1.5 pr-16 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#f5a638] focus:border-transparent transition"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-sm focus:outline-none"
-              title={showPassword ? "Sembunyikan password" : "Lihat password"}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-medium text-zinc-500 hover:text-zinc-800 transition cursor-pointer"
             >
-              <EyeIcon isOpen={showPassword} />
+              {showPassword ? "Tutup" : "Tampilkan"}
             </button>
-          </div>
-
-          {/* Lupa Password Link */}
-          <div className="flex justify-end mt-1.5">
-            <Link
-              href="/forgot-password"
-              className="text-xs text-[#2f80ed] hover:underline font-normal"
-            >
-              Lupa password?
-            </Link>
           </div>
         </div>
 
-        {/* Submit Button ("Masuk") */}
+        {/* Lupa Password Link (Right aligned) */}
+        <div className="flex justify-end pt-0">
+          <Link
+            href="/forgot-password"
+            className="text-[11px] font-semibold text-[#d97706] hover:text-[#b45309] hover:underline transition"
+          >
+            Lupa password?
+          </Link>
+        </div>
+
+        {/* Masuk Button */}
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#f5a623] hover:bg-[#e09214] text-white font-medium py-2.5 sm:py-3 rounded-md text-sm shadow-xs transition-colors disabled:opacity-70 flex items-center justify-center space-x-2"
+          className="w-full bg-[#24140b] hover:bg-black text-white font-bold text-xs sm:text-sm py-2 px-4 rounded-xl shadow-xs transition cursor-pointer disabled:opacity-60"
         >
-          {isLoading ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Memproses...</span>
-            </>
-          ) : (
-            <span>Masuk</span>
-          )}
+          {isLoading ? "Memproses..." : "Masuk"}
         </button>
 
         {/* Divider "atau" */}
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-zinc-200" />
-          </div>
-          <div className="relative flex justify-center text-xs">
-            <span className="bg-white px-3 text-zinc-400">atau</span>
-          </div>
+        <div className="flex items-center gap-3 my-2">
+          <div className="h-[1px] bg-zinc-200 flex-1" />
+          <span className="text-zinc-400 text-[10px] font-normal">atau</span>
+          <div className="h-[1px] bg-zinc-200 flex-1" />
         </div>
 
-        {/* Google Login Button */}
-        <button
-          type="button"
-          onClick={() => alert("Fitur Google Sign-In sedang disimulasikan.")}
-          className="w-full bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 font-medium py-2.5 sm:py-2.5 rounded-md text-xs sm:text-sm flex items-center justify-center space-x-2 transition-colors shadow-2xs"
-        >
-          <GoogleIcon />
-          <span>Lanjutkan dengan Google</span>
-        </button>
-
-        {/* Footer Link: Belum punya akun? Daftar */}
-        <div className="text-center pt-2">
-          <span className="text-xs text-zinc-500">Belum punya akun? </span>
-          <Link
-            href="/register"
-            className="text-xs text-[#2f80ed] font-medium hover:underline"
+        {/* Masuk dengan Google Button */}
+        <Link href="/login/google?role=partner" className="block w-full">
+          <button
+            type="button"
+            className="w-full bg-white hover:bg-zinc-50 border border-zinc-300 text-zinc-700 font-semibold text-xs py-1.5 px-4 rounded-xl shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer"
           >
-            Daftar
-          </Link>
-        </div>
+            <GoogleIcon />
+            <span>Masuk dengan Google</span>
+          </button>
+        </Link>
       </form>
-    </AuthLayout>
+
+      {/* Footer Register Link (Hanya untuk Partner) */}
+      <div className="text-center mt-2.5 text-xs text-zinc-500">
+        Belum punya akun?{" "}
+        <Link
+          href="/register"
+          className="font-bold text-[#d97706] hover:text-[#b45309] hover:underline"
+        >
+          Daftar
+        </Link>
+      </div>
+    </AuthSplitLayout>
   );
 }
 
 export default function PartnerLoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center bg-[#fdfaf4]">
-          <span className="w-8 h-8 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
-    >
-      <PartnerLoginForm />
+    <Suspense fallback={<div className="min-h-screen bg-white" />}>
+      <LoginFormContent />
     </Suspense>
   );
 }

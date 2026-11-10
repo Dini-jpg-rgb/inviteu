@@ -1,225 +1,234 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { usePartner } from "@/context/PartnerContext";
+import { usePartner, PackageId } from "@/context/PartnerContext";
+
+interface WidgetItem {
+  name: string;
+  basic: boolean;
+  medium: boolean;
+  pro: boolean;
+}
+
+// 17 Widget items exactly matching Image 2
+const WIDGETS: WidgetItem[] = [
+  { name: "Cover", basic: true, medium: true, pro: true },
+  { name: "Event Details", basic: true, medium: true, pro: true },
+  { name: "Gallery", basic: true, medium: true, pro: true },
+  { name: "Story", basic: false, medium: true, pro: true },
+  { name: "Countdown", basic: true, medium: true, pro: true },
+  { name: "Music", basic: true, medium: true, pro: true },
+  { name: "RSVP", basic: true, medium: true, pro: true },
+  { name: "Guestbook", basic: true, medium: true, pro: true },
+  { name: "Digital Gift", basic: true, medium: true, pro: true },
+  { name: "Video Greeting", basic: false, medium: false, pro: false }, // Terkunci (Add-on)
+  { name: "Location / Google Maps", basic: true, medium: true, pro: true },
+  { name: "Bank Account", basic: true, medium: true, pro: true },
+  { name: "E-wallet", basic: true, medium: true, pro: true },
+  { name: "Dress Code", basic: true, medium: true, pro: true },
+  { name: "Live Streaming", basic: false, medium: false, pro: false }, // Terkunci (Add-on)
+  { name: "FAQ", basic: true, medium: true, pro: true },
+  { name: "Wedding Hashtag", basic: false, medium: true, pro: true },
+];
 
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const pkgParam = (searchParams.get("pkg") as "basic" | "pro" | "premium") || "pro";
+  const pkgParam = (searchParams.get("pkg") as PackageId) || "medium";
 
-  const { buyPackage } = usePartner();
-  const [showModal, setShowModal] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const { activePackage } = usePartner();
 
-  const packageDetails = {
+  const packageDetails: Record<
+    PackageId,
+    {
+      title: string;
+      name: string;
+      price: string;
+      quota: string;
+      numericPrice: number;
+      description: string;
+    }
+  > = {
     basic: {
-      name: "Package Basic",
-      price: "Rp 150.000",
-      numericPrice: 150000,
-      description: "Invitation: 100, Widget: Basic, Design: Basic",
+      title: "Package Basic",
+      name: "Paket Basic",
+      price: "Rp 100.000",
+      quota: "5",
+      numericPrice: 100000,
+      description: "Invitation: 5, Template: Basic, Semua Widget Inti",
+    },
+    medium: {
+      title: "Package Medium",
+      name: "Paket Medium",
+      price: "Rp 250.000",
+      quota: "20",
+      numericPrice: 250000,
+      description: "Invitation: 20, Template: Medium & Basic, Semua Widget Inti",
     },
     pro: {
-      name: "Package Pro",
-      price: "Rp 350.000",
-      numericPrice: 350000,
-      description: "Invitation: 250, Widget: Pro, Design: Pro",
+      title: "Package Pro",
+      name: "Paket Pro",
+      price: "Rp 500.000",
+      quota: "50",
+      numericPrice: 500000,
+      description: "Invitation: 50, Template: Pro, Medium & Basic, Semua Widget Inti",
     },
     premium: {
-      name: "Package Premium",
-      price: "Rp 750.000",
-      numericPrice: 750000,
-      description: "Invitation: 500, Widget: Premium, Design: Premium",
+      title: "Package Pro",
+      name: "Paket Pro",
+      price: "Rp 500.000",
+      quota: "50",
+      numericPrice: 500000,
+      description: "Invitation: 50, Template: Pro, Medium & Basic, Semua Widget Inti",
     },
   };
 
-  const selectedPkg = packageDetails[pkgParam] || packageDetails.pro;
+  const selectedPkg = packageDetails[pkgParam] || packageDetails.medium;
+  const isCurrentActive =
+    activePackage === pkgParam ||
+    (pkgParam === "pro" && activePackage === "premium") ||
+    (pkgParam === "premium" && activePackage === "pro");
 
-  const handleConfirmPayment = () => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      // 1. Activate package & record transaction
-      buyPackage(pkgParam);
-      setIsProcessing(false);
-      setShowModal(false);
-
-      // 2. Navigate to /packages so user can verify active package (Image 4)
-      router.push("/packages");
-    }, 600);
-  };
+  const normalizedPkgKey: "basic" | "medium" | "pro" =
+    pkgParam === "basic" ? "basic" : pkgParam === "medium" ? "medium" : "pro";
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      {/* 1. Header (Matching Image 2) */}
-      <div className="pt-1">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 tracking-tight">
-          Checkout
+    <div className="space-y-4 max-w-7xl mx-auto">
+      {/* 1. Page Header (Matching Image 2) */}
+      <div className="pt-0.5">
+        <h1 className="text-xl sm:text-2xl font-serif font-bold text-zinc-900 tracking-tight">
+          {selectedPkg.title}
         </h1>
-        <p className="text-xs sm:text-sm text-zinc-500 font-medium mt-0.5">
-          Periksa pesananmu sebelum membayar
+        <p className="text-[11px] sm:text-xs text-zinc-500 font-normal mt-0.5">
+          Detail widget dan batas penggunaan
         </p>
       </div>
 
-      {/* 2. Main Two-Column Grid */}
+      {/* 2. Main Two-Column Grid (Left: Widget Table, Right: Summary Card) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Package dipilih & Metode pembayaran (8 cols) */}
-        <div className="lg:col-span-8 space-y-4">
-          {/* Card 1: Package dipilih */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs">
-            <h3 className="text-xs sm:text-sm font-bold text-zinc-900">
-              Package dipilih
-            </h3>
+        {/* Left Column: Widget List Table (8 cols) */}
+        <div className="lg:col-span-8 bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs">
+          <h2 className="text-base sm:text-lg font-bold text-zinc-900 mb-3">
+            Widget
+          </h2>
 
-            <div className="flex items-center justify-between gap-4 mt-3">
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-zinc-900">
-                  {selectedPkg.name}
-                </h4>
-                <p className="text-[11px] text-zinc-500 mt-0.5 font-normal">
-                  {selectedPkg.description}
-                </p>
-              </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#fcfaf7] border-y border-[#eee5da]">
+                  <th className="py-2.5 px-3 sm:px-4 text-xs font-semibold text-zinc-600">
+                    Widget
+                  </th>
+                  <th className="py-2.5 px-3 sm:px-4 text-xs font-semibold text-zinc-600 text-center w-44 sm:w-56">
+                    Status di package ini
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f3ece3]">
+                {WIDGETS.map((widget, idx) => {
+                  const isAvailable = widget[normalizedPkgKey];
 
-              <div className="text-xs sm:text-sm font-bold text-zinc-900 shrink-0">
-                {selectedPkg.price}
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Metode pembayaran */}
-          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs">
-            <h3 className="text-xs sm:text-sm font-bold text-zinc-900">
-              Metode pembayaran
-            </h3>
-
-            <div className="bg-[#fcfaf7] border border-[#eee5da] rounded-xl p-8 sm:p-12 flex items-center justify-center text-center mt-3">
-              <p className="text-xs text-zinc-500 max-w-sm leading-relaxed font-normal">
-                Metode pembayaran mengikuti model pembayaran B2B yang masih menunggu keputusan bisnis.
-              </p>
-            </div>
+                  return (
+                    <tr
+                      key={idx}
+                      className="hover:bg-[#fdfbf9] transition-colors"
+                    >
+                      <td className="py-2.5 px-3 sm:px-4 text-xs sm:text-sm text-zinc-800 font-medium">
+                        {widget.name}
+                      </td>
+                      <td className="py-2.5 px-3 sm:px-4 text-center">
+                        {isAvailable ? (
+                          <span className="inline-flex items-center justify-center px-4 py-0.5 rounded-full text-[11px] font-semibold bg-[#eaf7f0] text-[#15803d] border border-[#bbf7d0]">
+                            Tersedia
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center justify-center px-4 py-0.5 rounded-full text-[11px] font-semibold bg-[#f6efe6] text-[#785942] border border-[#e2d0c2]">
+                            Terkunci
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* Right Column: Ringkasan Card (4 cols) */}
-        <div className="lg:col-span-4">
-          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs">
-            <h3 className="text-xs sm:text-sm font-bold text-zinc-900">
-              Ringkasan
-            </h3>
+        {/* Right Column: Ringkasan package Card (4 cols) */}
+        <div className="lg:col-span-4 bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-[#e5d8c8] shadow-xs">
+          <h3 className="text-base font-bold text-zinc-900 mb-5">
+            Ringkasan package
+          </h3>
 
-            {/* Subtotal */}
-            <div className="flex items-center justify-between text-xs text-zinc-500 mt-4 italic font-normal">
-              <span>Subtotal</span>
-              <span>{selectedPkg.price}</span>
+          <div className="space-y-4 text-xs sm:text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500 font-normal">Harga</span>
+              <span className="font-bold text-zinc-900">
+                {selectedPkg.price}
+              </span>
             </div>
 
-            <div className="border-t border-zinc-100 my-4" />
-
-            {/* Total */}
-            <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-zinc-900">
-              <span>Total</span>
-              <span>{selectedPkg.price}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500 font-normal">
+                Invitation (quota)
+              </span>
+              <span className="font-bold text-zinc-900">
+                {selectedPkg.quota}
+              </span>
             </div>
 
-            {/* CTA Button: Lanjut ke pembayaran */}
-            <button
-              id="btn-lanjut-pembayaran"
-              onClick={() => setShowModal(true)}
-              className="w-full bg-[#1c1c1c] hover:bg-black text-white font-medium text-xs py-3 rounded-lg mt-5 transition-colors cursor-pointer shadow-xs"
-            >
-              Lanjut ke pembayaran
-            </button>
+            <div className="flex items-center justify-between">
+              <span className="text-zinc-500 font-normal">Add-on</span>
+              <span className="font-bold text-zinc-900">Sesuai package</span>
+            </div>
+          </div>
 
-            {/* Subtext */}
-            <p className="text-[11px] text-zinc-500 mt-3 text-center font-normal">
-              Package aktif setelah pembayaran berhasil.
-            </p>
+          {/* Action Buttons */}
+          <div className="mt-8 space-y-2.5">
+            {isCurrentActive ? (
+              <button
+                type="button"
+                disabled
+                className="w-full bg-[#f6efe6] text-[#785942] text-xs sm:text-sm font-semibold py-2.5 rounded-xl border border-[#e2d0c2] cursor-default"
+              >
+                Paket Sedang Aktif
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="btn-pilih-package-ini"
+                onClick={() => router.push(`/packages/payment?pkg=${pkgParam}`)}
+                className="w-full bg-[#2d1b11] hover:bg-black text-white text-xs sm:text-sm font-semibold py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Pilih package ini
+              </button>
+            )}
+
+            <Link href="/packages" className="block w-full">
+              <button
+                type="button"
+                className="w-full bg-white hover:bg-zinc-50 text-zinc-800 text-xs sm:text-sm font-semibold py-2.5 rounded-xl border border-zinc-300 transition-colors cursor-pointer shadow-2xs"
+              >
+                Kembali ke daftar
+              </button>
+            </Link>
           </div>
         </div>
       </div>
-
-      {/* 3. Pop-up / Modal Konfirmasi Pembayaran */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-zinc-200 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-              <h3 className="text-sm font-bold text-zinc-900">
-                Konfirmasi Pembayaran
-              </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-zinc-400 hover:text-zinc-600 text-lg leading-none cursor-pointer"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Order Details */}
-            <div className="py-4 space-y-3 text-xs">
-              <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200 text-amber-900 flex items-center justify-between">
-                <div>
-                  <div className="font-bold">{selectedPkg.name}</div>
-                  <div className="text-[11px] text-amber-800">{selectedPkg.description}</div>
-                </div>
-                <div className="font-bold text-sm">{selectedPkg.price}</div>
-              </div>
-
-              <div className="space-y-1.5 text-zinc-600 pt-1">
-                <div className="flex justify-between">
-                  <span>Metode:</span>
-                  <span className="font-medium text-zinc-900">Simulasi Pembayaran B2B</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Status:</span>
-                  <span className="font-medium text-emerald-600">Siap Diproses</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t border-zinc-100 font-bold text-zinc-900 text-sm">
-                  <span>Total Tagihan:</span>
-                  <span className="text-amber-600">{selectedPkg.price}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center gap-2 pt-3 border-t border-zinc-100">
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                disabled={isProcessing}
-                className="flex-1 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold py-2.5 rounded-lg transition-colors cursor-pointer"
-              >
-                Batal
-              </button>
-
-              <button
-                type="button"
-                id="btn-bayar-sekarang"
-                onClick={handleConfirmPayment}
-                disabled={isProcessing}
-                className="flex-1 bg-[#f5a638] hover:bg-[#e09228] text-white text-xs font-bold py-2.5 rounded-lg shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                {isProcessing ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Memproses...</span>
-                  </>
-                ) : (
-                  <span>Bayar Sekarang</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={<div className="text-xs text-zinc-500">Memuat checkout...</div>}>
+    <Suspense
+      fallback={
+        <div className="text-xs text-zinc-500 p-4">Memuat detail package...</div>
+      }
+    >
       <CheckoutContent />
     </Suspense>
   );
