@@ -218,6 +218,7 @@ export const DEMO_INVITATIONS: PartnerInvitation[] = DEFAULT_INVITATIONS;
 
 interface PartnerContextType {
   activePackage: PackageId | null;
+  setActivePackage: (pkg: PackageId | null) => void;
   invoices: InvoiceReceiptItem[];
   transactions: PackageTransaction[];
   invitations: PartnerInvitation[];
@@ -547,6 +548,7 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
     <PartnerContext.Provider
       value={{
         activePackage,
+        setActivePackage,
         invoices,
         transactions,
         invitations,

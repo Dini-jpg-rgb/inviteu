@@ -7,12 +7,23 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("token")?.value;
   const userRole = request.cookies.get("role")?.value || "";
 
+  // Rewrite / redirect helper jika user mengetikkan /partner/templates
+  if (pathname.startsWith("/partner/templates/builder")) {
+    const url = new URL("/templates/builder", request.url);
+    url.search = request.nextUrl.search;
+    return NextResponse.redirect(url);
+  }
+  if (pathname === "/partner/templates") {
+    return NextResponse.redirect(new URL("/templates", request.url));
+  }
+
   // 1. Rute Terlindungi untuk Partner
   const isPartnerRoute =
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/invitations") ||
     pathname.startsWith("/packages") ||
-    pathname.startsWith("/profile");
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/templates");
 
   const isAdminRoute = pathname.startsWith("/admin");
   const isDesignerRoute = pathname.startsWith("/designer");

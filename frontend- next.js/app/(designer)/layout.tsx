@@ -11,6 +11,15 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
   const { logout } = useAuth();
 
+  // Mode Fullscreen Page Builder tanpa Sidebar
+  if (pathname.includes("/builder")) {
+    return (
+      <div className="w-screen h-screen overflow-hidden bg-[#2D1C15] text-white">
+        {children}
+      </div>
+    );
+  }
+
   // 3 Menu Utama Designer sesuai PRD v3.0 Bagian 17
   const designerNavigation = [
     {
@@ -66,7 +75,7 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
 
           {/* Quick Action Button Create Template (PRD 18.3) */}
           <Link
-            href="/designer/templates"
+            href="/designer/templates/builder"
             className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow hover:bg-indigo-700 transition"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

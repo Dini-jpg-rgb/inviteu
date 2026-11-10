@@ -1,0 +1,203 @@
+{
+  "theme": "bali-tropical",
+  "version": "1.0",
+  "metadata": {
+    "title": "Bali Tropical - Chyntia & Rian",
+    "category": "Traditional / Bali Tropical Luxury",
+    "culture": "Balinese Wedding (Pawiwahan)",
+    "greeting": "Om Swastiastu",
+    "closing": "Suksma",
+    "designTokens": {
+      "colors": {
+        "primary": "#d7ab58",
+        "secondary": "#e8c97e",
+        "background": "#102218",
+        "cardBg": "#162e21",
+        "text": "#f3eee6",
+        "accent": "#d7ab58"
+      },
+      "typography": {
+        "headingSerif": "Cinzel, serif",
+        "scriptCalligraphy": "Pinyon Script, cursive",
+        "bodySerif": "Cormorant Garamond, Georgia, serif"
+      }
+    }
+  },
+  "assets": {
+    "gapuraFull": "/templates/bali-tropical/gapura-full.png",
+    "halfGapura": "/templates/bali-tropical/half-gapura.png",
+    "bungaFull": "/templates/bali-tropical/bunga-full.png",
+    "melati": "/templates/bali-tropical/melati.png",
+    "ornFlowers": "/templates/bali-tropical/orn-flowers.png",
+    "daunPenjorKiri": "/templates/bali-tropical/daun-penjor-kiri.png",
+    "daunPenjorKanan": "/templates/bali-tropical/daun-penjor-kanan.png",
+    "daunKiri": "/templates/bali-tropical/daun-kiri.png",
+    "daunKanan": "/templates/bali-tropical/daun-kanan.png",
+    "thumbnail": "/templates/bali-tropical/thumbnail.png"
+  },
+  "sections": [
+    {
+      "id": "cover-modal",
+      "type": "COVER_SPLASH",
+      "heading": "OM SWASTIASTU",
+      "subheading": "THE WEDDING OF",
+      "coupleNames": "Chyntia & Rian",
+      "date": "Minggu, 22 November 2026",
+      "venue": "[Nama Lokasi], Bali",
+      "guestLabel": "Kepada Yth. Bapak/Ibu/Saudara/i",
+      "buttonText": "BUKA UNDANGAN",
+      "layout": {
+        "topCorners": {
+          "left": "/templates/bali-tropical/daun-kiri.png",
+          "right": "/templates/bali-tropical/daun-kanan.png"
+        },
+        "archFrame": {
+          "leftFlank": "/templates/bali-tropical/daun-penjor-kanan.png",
+          "rightFlank": "/templates/bali-tropical/daun-penjor-kiri.png",
+          "flowerClusters": "/templates/bali-tropical/bunga-full.png"
+        }
+      }
+    },
+    {
+      "id": "blessing-header",
+      "type": "HEADER_BLESSING",
+      "greeting": "Om Swastiastu",
+      "blessingText": "Atas Asung Kertha Wara Nugraha Ida Sang Hyang Widhi Wasa/Tuhan Yang Maha Esa, kami bermaksud mengundang Bapak/Ibu/Saudara/i pada Upacara Pawiwahan kami:"
+    },
+    {
+      "id": "couple-section",
+      "type": "COUPLE_PROFILES",
+      "bride": {
+        "name": "Chyntia",
+        "fullName": "Ni Putu Chyntia Dewi, S.Ked",
+        "parents": "Putri pertama dari Bapak I Wayan Suartana & Ibu Ni Ketut Murniati",
+        "photoPlaceholder": "Foto Chyntia"
+      },
+      "groom": {
+        "name": "Rian",
+        "fullName": "I Made Rian Arisatya, S.T",
+        "parents": "Putra pertama dari Bapak I Made Hendra & Ibu Ni Luh Sukerti",
+        "photoPlaceholder": "Foto Rian"
+      }
+    },
+    {
+      "id": "events-schedule",
+      "type": "EVENT_SCHEDULE",
+      "events": [
+        {
+          "name": "Pawiwahan (Akad Nikah)",
+          "date": "Minggu, 22 November 2026",
+          "time": "09.00 - 11.00 WITA",
+          "location": "Bale Banjar Adat & Kediaman Mempelai Pria",
+          "address": "Jl. Raya Seminyak No. 88, Badung, Bali"
+        },
+        {
+          "name": "Resepsi",
+          "date": "Minggu, 22 November 2026",
+          "time": "18.00 WITA - Selesai",
+          "location": "The Kayana Sunset Garden Villa",
+          "address": "Jl. Petitenget No. 100, Badung, Bali"
+        }
+      ]
+    },
+    {
+      "id": "countdown-timer",
+      "type": "COUNTDOWN",
+      "title": "COUNTDOWN HARI BAHAGIA",
+      "targetDate": "2026-11-22T09:00:00+08:00"
+    },
+    {
+      "id": "location-map",
+      "type": "LOCATION_MAP",
+      "title": "LOKASI ACARA",
+      "address": "The Kayana Sunset Garden Villa, Badung, Bali",
+      "mapUrl": "https://maps.google.com",
+      "actions": [
+        {
+          "type": "primary",
+          "label": "LIHAT LOKASI",
+          "url": "https://maps.google.com"
+        },
+        {
+          "type": "secondary",
+          "label": "SALIN ALAMAT",
+          "action": "copy_address"
+        }
+      ]
+    },
+    {
+      "id": "kisah-kami",
+      "type": "LOVE_STORY",
+      "title": "KISAH KAMI",
+      "milestones": [
+        {
+          "tab": "Bertemu",
+          "content": "Kami bertemu pada sebuah momen sederhana. Dari obrolan ringan, tumbuhlah rasa yang kini kami bawa ke pelaminan."
+        },
+        {
+          "tab": "Dekat",
+          "content": "Seiring waktu berjalan, canda tawa dan percakapan sederhana mempertemukan dua hati yang saling melengkapi dalam rasa dan doa."
+        },
+        {
+          "tab": "Melamar",
+          "content": "Dengan restu Ida Sang Hyang Widhi Wasa dan kedua orang tua, kami mengikat janji suci untuk melangkah bersama menuju pelaminan."
+        }
+      ]
+    },
+    {
+      "id": "gallery-grid",
+      "type": "GALLERY",
+      "title": "GALERI",
+      "images": [
+        "/templates/wedding/gallery-1.jpg",
+        "/templates/wedding/gallery-2.jpg",
+        "/templates/wedding/gallery-3.jpg",
+        "/templates/wedding/gallery-4.jpg",
+        "/templates/wedding/couple-main.jpg",
+        "/templates/wedding/venue.jpg"
+      ]
+    },
+    {
+      "id": "rsvp-form",
+      "type": "RSVP",
+      "title": "KONFIRMASI KEHADIRAN",
+      "subtitle": "Mohon konfirmasi kehadiran sebelum 15 November 2026",
+      "submitText": "KIRIM KONFIRMASI"
+    },
+    {
+      "id": "private-message",
+      "type": "VOICE_NOTE",
+      "title": "PESAN PRIBADI",
+      "subtitle": "Rekam pesan suara atau video singkat untuk kedua mempelai (maks. 10 detik)",
+      "maxDurationSeconds": 10,
+      "submitText": "KIRIM BERSAMA RSVP"
+    },
+    {
+      "id": "wishes-guestbook",
+      "type": "WISHES_GUESTBOOK",
+      "title": "UCAPAN & DOA",
+      "subtitle": "Tuliskan ucapan dan doa terbaik Anda untuk kedua mempelai."
+    },
+    {
+      "id": "wedding-gift",
+      "type": "DIGITAL_GIFT",
+      "title": "KIRIM HADIAH",
+      "subtitle": "Kehadiran Bapak/Ibu/Saudara/i sudah menjadi hadiah terindah. Bila berkenan berbagi kebahagiaan, dapat melalui:",
+      "accounts": [
+        {
+          "bank": "[NAMA BANK]",
+          "accountNumber": "[NOMOR REKENING]",
+          "holderName": "Pramarta Chyntia Andita"
+        }
+      ]
+    },
+    {
+      "id": "closing-suksma",
+      "type": "CLOSING",
+      "title": "Suksma",
+      "message": "Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir dan memberikan doa restu kepada kami.",
+      "coupleNames": "Chyntia & Rian",
+      "tagline": "Forever in sacred harmony."
+    }
+  ]
+}

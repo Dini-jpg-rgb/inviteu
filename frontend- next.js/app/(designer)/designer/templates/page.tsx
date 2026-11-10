@@ -19,9 +19,11 @@ export default function DesignerTemplatesPage() {
             Daftar template undangan berbasis skema data JSON dan status persetujuan Admin (PRD v3.0 Bagian 19).
           </p>
         </div>
-        <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white self-start sm:self-auto">
-          + Buat Template Baru
-        </Button>
+        <Link href="/designer/templates/builder">
+          <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white self-start sm:self-auto cursor-pointer">
+            + Buat Template Baru
+          </Button>
+        </Link>
       </div>
 
       {/* Templates Grid */}
@@ -86,9 +88,10 @@ export default function DesignerTemplatesPage() {
                     </Link>
                   </h3>
                   <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
-                    {tpl.slug === "wedding" || tpl.id === "template-wedding" || tpl.id === "template-130"
-                      ? "Nuansa alam botanis hijau sage, monogram kaligrafi, bingkai vintage mirror, RSVP, dan countdown."
-                      : "Template bertema elegan dan minimalis modern dengan layout fleksibel."}
+                    {tpl.description ||
+                      (tpl.slug === "wedding" || tpl.id === "template-wedding" || tpl.id === "template-130"
+                        ? "Nuansa alam botanis hijau sage, monogram kaligrafi, bingkai vintage mirror, RSVP, dan countdown."
+                        : "Template bertema elegan dan minimalis modern dengan layout fleksibel.")}
                   </p>
 
                   <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-400 flex justify-between">
@@ -99,13 +102,20 @@ export default function DesignerTemplatesPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="p-5 pt-0 mt-2">
+              <div className="p-5 pt-0 mt-2 flex gap-2">
                 <Link
                   href={`/designer/templates/${tpl.slug}`}
-                  className="w-full inline-flex items-center justify-center space-x-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 py-2.5 px-4 rounded-md text-xs font-semibold shadow-xs transition-colors"
+                  className="flex-1 inline-flex items-center justify-center space-x-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 py-2 px-3 rounded-md text-xs font-semibold transition-colors"
                 >
                   <span>👁️</span>
-                  <span>Pratinjau Desain (Preview HP)</span>
+                  <span>Pratinjau</span>
+                </Link>
+                <Link
+                  href={`/designer/templates/builder?theme=${tpl.slug}`}
+                  className="flex-1 inline-flex items-center justify-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-3 rounded-md text-xs font-semibold shadow-xs transition-colors"
+                >
+                  <span>🎨</span>
+                  <span>Edit Builder</span>
                 </Link>
               </div>
             </Card>
@@ -115,4 +125,3 @@ export default function DesignerTemplatesPage() {
     </div>
   );
 }
-

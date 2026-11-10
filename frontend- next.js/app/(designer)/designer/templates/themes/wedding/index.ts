@@ -9,6 +9,7 @@ export interface TemplateTheme {
   version: string;
   createdAt: string;
   thumbnail: string;
+  description?: string;
   colorPalette: {
     primary: string;
     secondary: string;
@@ -20,6 +21,7 @@ export interface TemplateTheme {
   typography: {
     serif: string;
     script: string;
+    body?: string;
   };
   content: {
     monogram: {
@@ -30,11 +32,15 @@ export interface TemplateTheme {
     couple: {
       groom: string;
       bride: string;
+      groomBio?: string;
+      brideBio?: string;
     };
     invitationNote: {
       badge: string;
       familyName: string;
       message: string;
+      bismillah?: string;
+      citation?: string;
     };
     banner: {
       tag: string;
@@ -61,6 +67,14 @@ export interface TemplateTheme {
       title: string;
       subtitle: string;
       palettes: { name: string; hex: string }[];
+      note?: string;
+    };
+    story?: {
+      title: string;
+      milestones: {
+        tab: string;
+        content: string;
+      }[];
     };
     gallery: {
       title: string;
@@ -77,6 +91,12 @@ export interface TemplateTheme {
         submitText: string;
       };
     };
+    privateMessage?: {
+      title: string;
+      subtitle: string;
+      maxDuration: number;
+      submitText: string;
+    };
     closing: {
       title: string;
       message: string;
@@ -84,6 +104,20 @@ export interface TemplateTheme {
       coupleNames: string;
       tagline: string;
     };
+    events?: {
+      name: string;
+      date: string;
+      time: string;
+      location: string;
+      address?: string;
+      mapUrl?: string;
+    }[];
+    bankAccounts?: {
+      bankName: string;
+      accountNumber: string;
+      holderName: string;
+    }[];
+    assets?: Record<string, string>;
   };
   rawFigmaJson: unknown;
 }
