@@ -85,7 +85,7 @@ export default function PartnerDashboardPage() {
           </p>
         </div>
 
-        <Link href="/invitations/create">
+        <Link href="/templates">
           <button className="bg-[#24140b] hover:bg-black text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
             <span className="text-sm font-bold leading-none">+</span>
             <span>Create Invitation</span>

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { PARTNER_TEMPLATES, PartnerTemplateItem } from "./data";
 import { usePartner } from "@/context/PartnerContext";
 
@@ -13,17 +14,35 @@ const TIER_LEVELS: Record<string, number> = {
   premium: 4,
 };
 
-export default function PartnerTemplatesPage() {
+function TemplatesContent() {
   const { activePackage, setActivePackage } = usePartner();
   const userTier = (activePackage || "basic").toLowerCase();
+  const searchParams = useSearchParams();
+  const tierParam = searchParams.get("tier") || searchParams.get("package") || searchParams.get("version");
 
   const [searchQuery, setSearchQuery] = useState("");
-  // Default selected tier matches user's active subscribed tier
+  // Default selected tier matches URL query param if available, otherwise user's active subscribed tier
   const [selectedTier, setSelectedTier] = useState<"semua" | "basic" | "medium" | "pro">(() => {
+    if (tierParam) {
+      const lower = tierParam.toLowerCase();
+      if (lower === "basic" || lower === "medium" || lower === "pro" || lower === "semua") {
+        return lower as "semua" | "basic" | "medium" | "pro";
+      }
+    }
     if (userTier === "medium") return "medium";
     if (userTier === "pro") return "pro";
     return "basic";
   });
+
+  // Sync if query param changes dynamically
+  useEffect(() => {
+    if (tierParam) {
+      const lower = tierParam.toLowerCase();
+      if (lower === "basic" || lower === "medium" || lower === "pro" || lower === "semua") {
+        setSelectedTier(lower as "semua" | "basic" | "medium" | "pro");
+      }
+    }
+  }, [tierParam]);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState<string>("Semua");
@@ -372,7 +391,7 @@ export default function PartnerTemplatesPage() {
               key={tpl.id}
               className="bg-white rounded-[22px] p-3 border border-[#ecdcc8]/60 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
             >
-              <div>
+              <Link href={`/templates/${tpl.slug}`} className="block cursor-pointer">
                 {/* Thumbnail Container with Rounded Corners */}
                 <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden bg-zinc-100 mb-3 border border-zinc-100">
                   <Image
@@ -425,7 +444,7 @@ export default function PartnerTemplatesPage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </Link>
 
               {/* Action Buttons */}
               {!canEdit ? (
@@ -478,5 +497,19 @@ export default function PartnerTemplatesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PartnerTemplatesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[300px] text-xs font-semibold text-[#5d4037]">
+          Memuat katalog template...
+        </div>
+      }
+    >
+      <TemplatesContent />
+    </Suspense>
   );
 }
