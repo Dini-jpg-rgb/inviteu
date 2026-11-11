@@ -73,13 +73,14 @@ export interface CraftCoverProps {
   date?: string;
 }
 
-export const CraftCoverSection: UserComponent<CraftCoverProps> = ({
-  monogram = "M / L",
-  coupleNames = "MOGRAN & LAURA",
-  inviteeName = "Caine",
-  subtitle = "We would be delighted to have you with us as we celebrate the beginning of our forever.",
-  date = "20 Januari 2027",
-}) => {
+export const CraftCoverSection: UserComponent<CraftCoverProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.cover || props;
+  const monogram = data.monogram ?? props.monogram ?? "M / L";
+  const coupleNames = data.coupleNames ?? props.coupleNames ?? "MOGRAN & LAURA";
+  const inviteeName = data.inviteeName ?? props.inviteeName ?? "Caine";
+  const subtitle = data.subtitle ?? props.subtitle ?? "We would be delighted to have you with us as we celebrate the beginning of our forever.";
+  const date = data.date ?? props.date ?? "20 Januari 2027";
   const {
     connectors: { connect, drag },
     selected,
@@ -159,11 +160,12 @@ export interface CraftOpeningProps {
   coupleSign?: string;
 }
 
-export const CraftOpeningSection: UserComponent<CraftOpeningProps> = ({
-  quoteTitle = "Two Hearts, One Journey",
-  quoteMessage = "With joyful hearts, we invite you to witness and celebrate the beginning of our new chapter together.",
-  coupleSign = "MOGRAN & LAURA",
-}) => {
+export const CraftOpeningSection: UserComponent<CraftOpeningProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.opening || props;
+  const quoteTitle = data.quoteTitle ?? props.quoteTitle ?? "Two Hearts, One Journey";
+  const quoteMessage = data.quoteMessage ?? props.quoteMessage ?? "With joyful hearts, we invite you to witness and celebrate the beginning of our new chapter together.";
+  const coupleSign = data.coupleSign ?? props.coupleSign ?? "MOGRAN & LAURA";
   const {
     connectors: { connect, drag },
     selected,
@@ -232,12 +234,13 @@ export interface CraftBrideGroomProps {
   brideParents?: string;
 }
 
-export const CraftBrideGroomSection: UserComponent<CraftBrideGroomProps> = ({
-  groomName = "Mogran Arisatya, S.T",
-  groomParents = "Putra pertama dari Bapak Hendra & Ibu Sukerti",
-  brideName = "Laura Chyntia, S.Ked",
-  brideParents = "Putri pertama dari Bapak Suartana & Ibu Murniati",
-}) => {
+export const CraftBrideGroomSection: UserComponent<CraftBrideGroomProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.brideGroom || props;
+  const groomName = data.groomName ?? props.groomName ?? "Mogran Arisatya, S.T";
+  const groomParents = data.groomParents ?? props.groomParents ?? "Putra pertama dari Bapak Hendra & Ibu Sukerti";
+  const brideName = data.brideName ?? props.brideName ?? "Laura Chyntia, S.Ked";
+  const brideParents = data.brideParents ?? props.brideParents ?? "Putri pertama dari Bapak Suartana & Ibu Murniati";
   const {
     connectors: { connect, drag },
     selected,
@@ -317,12 +320,13 @@ export interface CraftEventDetailsProps {
   eventLocation?: string;
 }
 
-export const CraftEventDetailsSection: UserComponent<CraftEventDetailsProps> = ({
-  eventName = "Akad dan resepsi",
-  eventDate = "20 Januari 2027",
-  eventTime = "10.00 - 13.00 WITA",
-  eventLocation = "Jl Pererenan, Canggu",
-}) => {
+export const CraftEventDetailsSection: UserComponent<CraftEventDetailsProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.eventDetails || props;
+  const eventName = data.eventName ?? props.eventName ?? "Akad dan resepsi";
+  const eventDate = data.eventDate ?? props.eventDate ?? "20 Januari 2027";
+  const eventTime = data.eventTime ?? props.eventTime ?? "10.00 - 13.00 WITA";
+  const eventLocation = data.eventLocation ?? props.eventLocation ?? "Jl Pererenan, Canggu";
   const {
     connectors: { connect, drag },
     selected,
@@ -400,9 +404,10 @@ export interface CraftCountdownProps {
   targetDate?: string;
 }
 
-export const CraftCountdownSection: UserComponent<CraftCountdownProps> = ({
-  countdownTitle = "Menuju Hari Bahagia",
-}) => {
+export const CraftCountdownSection: UserComponent<CraftCountdownProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.countdown || props;
+  const countdownTitle = data.countdownTitle ?? props.countdownTitle ?? "Menuju Hari Bahagia";
   const {
     connectors: { connect, drag },
     selected,
@@ -466,10 +471,11 @@ export interface CraftStoryProps {
   storyMessage?: string;
 }
 
-export const CraftStorySection: UserComponent<CraftStoryProps> = ({
-  storyTitle = "Kisah Kami",
-  storyMessage = "Pertemuan sederhana yang bermula dari tatap pertama, tumbuh menjadi persahabatan, hingga akhirnya bermuara pada janji suci pernikahan seumur hidup.",
-}) => {
+export const CraftStorySection: UserComponent<CraftStoryProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.story || props;
+  const storyTitle = data.storyTitle ?? props.storyTitle ?? "Kisah Kami";
+  const storyMessage = data.storyMessage ?? props.storyMessage ?? "Pertemuan sederhana yang bermula dari tatap pertama, tumbuh menjadi persahabatan, hingga akhirnya bermuara pada janji suci pernikahan seumur hidup.";
   const {
     connectors: { connect, drag },
     selected,
@@ -517,10 +523,11 @@ export interface CraftGalleryProps {
   gallerySubtitle?: string;
 }
 
-export const CraftGallerySection: UserComponent<CraftGalleryProps> = ({
-  galleryTitle = "Galeri Momen",
-  gallerySubtitle = "Potret kebersamaan dan kenangan indah kami berdua.",
-}) => {
+export const CraftGallerySection: UserComponent<CraftGalleryProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.gallery || props;
+  const galleryTitle = data.galleryTitle ?? props.galleryTitle ?? "Galeri Momen";
+  const gallerySubtitle = data.gallerySubtitle ?? props.gallerySubtitle ?? "Potret kebersamaan dan kenangan indah kami berdua.";
   const {
     connectors: { connect, drag },
     selected,
@@ -580,11 +587,12 @@ export interface CraftRsvpProps {
   submitButtonText?: string;
 }
 
-export const CraftRsvpSection: UserComponent<CraftRsvpProps> = ({
-  rsvpTitle = "Konfirmasi Kehadiran",
-  rsvpDeadline = "Mohon konfirmasi kehadiran sebelum 10 Januari 2027",
-  submitButtonText = "Kirim Konfirmasi",
-}) => {
+export const CraftRsvpSection: UserComponent<CraftRsvpProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.rsvp || props;
+  const rsvpTitle = data.rsvpTitle ?? props.rsvpTitle ?? "Konfirmasi Kehadiran";
+  const rsvpDeadline = data.rsvpDeadline ?? props.rsvpDeadline ?? "Mohon konfirmasi kehadiran sebelum 10 Januari 2027";
+  const submitButtonText = data.submitButtonText ?? props.submitButtonText ?? "Kirim Konfirmasi";
   const {
     connectors: { connect, drag },
     selected,
@@ -657,13 +665,14 @@ export interface CraftDigitalGiftProps {
   accountHolder?: string;
 }
 
-export const CraftDigitalGiftSection: UserComponent<CraftDigitalGiftProps> = ({
-  giftTitle = "Tanda Kasih Digital",
-  giftSubtitle = "Bila berkenan memberikan tanda kasih digital untuk kedua mempelai:",
-  bankName = "Bank BCA",
-  accountNumber = "7720918231",
-  accountHolder = "Mogran Arisatya",
-}) => {
+export const CraftDigitalGiftSection: UserComponent<CraftDigitalGiftProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.digitalGift || props;
+  const giftTitle = data.giftTitle ?? props.giftTitle ?? "Tanda Kasih Digital";
+  const giftSubtitle = data.giftSubtitle ?? props.giftSubtitle ?? "Bila berkenan memberikan tanda kasih digital untuk kedua mempelai:";
+  const bankName = data.bankName ?? props.bankName ?? "Bank BCA";
+  const accountNumber = data.accountNumber ?? props.accountNumber ?? "7720918231";
+  const accountHolder = data.accountHolder ?? props.accountHolder ?? "Mogran Arisatya";
   const {
     connectors: { connect, drag },
     selected,
@@ -726,11 +735,12 @@ export interface CraftClosingProps {
   signature?: string;
 }
 
-export const CraftClosingSection: UserComponent<CraftClosingProps> = ({
-  closingTitle = "Terima Kasih",
-  closingMessage = "Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir dan memberikan doa restu kepada kami.",
-  signature = "Mogran & Laura",
-}) => {
+export const CraftClosingSection: UserComponent<CraftClosingProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.closing || props;
+  const closingTitle = data.closingTitle ?? props.closingTitle ?? "Terima Kasih";
+  const closingMessage = data.closingMessage ?? props.closingMessage ?? "Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir dan memberikan doa restu kepada kami.";
+  const signature = data.signature ?? props.signature ?? "Mogran & Laura";
   const {
     connectors: { connect, drag },
     selected,
@@ -822,15 +832,16 @@ export interface CraftBaliCoverProps {
   heroImage?: string;
 }
 
-export const CraftBaliCoverSection: UserComponent<CraftBaliCoverProps> = ({
-  tagline = "OM SWASTIASTU",
-  theWeddingOf = "THE WEDDING OF",
-  coupleTitle = "Chyntia & Rian",
-  eventDate = "MINGGU · 22 NOVEMBER 2026",
-  locationShort = "Badung, Bali",
-  inviteeName = "Tamu Undangan",
-  heroImage = "/templates/wedding/couple-main.jpg",
-}) => {
+export const CraftBaliCoverSection: UserComponent<CraftBaliCoverProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.cover || props;
+  const tagline = data.tagline ?? props.tagline ?? "OM SWASTIASTU";
+  const theWeddingOf = data.theWeddingOf ?? props.theWeddingOf ?? "THE WEDDING OF";
+  const coupleTitle = data.coupleTitle ?? props.coupleTitle ?? "Chyntia & Rian";
+  const eventDate = data.eventDate ?? props.eventDate ?? "MINGGU · 22 NOVEMBER 2026";
+  const locationShort = data.locationShort ?? props.locationShort ?? "Badung, Bali";
+  const inviteeName = data.inviteeName ?? props.inviteeName ?? "Tamu Undangan";
+  const heroImage = data.heroImage ?? props.heroImage ?? "/templates/wedding/couple-main.jpg";
   const {
     connectors: { connect, drag },
     selected,
@@ -950,11 +961,12 @@ export interface CraftBaliOpeningProps {
   gapuraImage?: string;
 }
 
-export const CraftBaliOpeningSection: UserComponent<CraftBaliOpeningProps> = ({
-  quoteTitle = "Om Swastiastu",
-  quoteMessage = "Atas asung kerta wara nugraha Ida Sang Hyang Widhi Wasa, kami mengundang Bapak/Ibu/Saudara/i untuk hadir dan memberikan doa restu pada hari pernikahan kami.",
-  gapuraImage = "/templates/bali-tropical/gapura-full.png",
-}) => {
+export const CraftBaliOpeningSection: UserComponent<CraftBaliOpeningProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.opening || props;
+  const quoteTitle = data.quoteTitle ?? props.quoteTitle ?? "Om Swastiastu";
+  const quoteMessage = data.quoteMessage ?? props.quoteMessage ?? "Atas asung kerta wara nugraha Ida Sang Hyang Widhi Wasa, kami mengundang Bapak/Ibu/Saudara/i untuk hadir dan memberikan doa restu pada hari pernikahan kami.";
+  const gapuraImage = data.gapuraImage ?? props.gapuraImage ?? "/templates/bali-tropical/gapura-full.png";
   const {
     connectors: { connect, drag },
     selected,
@@ -1030,14 +1042,15 @@ export interface CraftBaliCoupleProps {
   groomImage?: string;
 }
 
-export const CraftBaliCoupleSection: UserComponent<CraftBaliCoupleProps> = ({
-  brideName = "Ni Putu Chyntia Dewi, S.Ked",
-  brideBio = "Putri pertama dari Bapak I Wayan Suartana & Ibu Ni Ketut Murniati",
-  groomName = "I Made Rian Arisatya, S.T",
-  groomBio = "Putra pertama dari Bapak I Made Hendra & Ibu Ni Luh Sukerti",
-  brideImage = "/templates/wedding/gallery-1.jpg",
-  groomImage = "/templates/wedding/couple-main.jpg",
-}) => {
+export const CraftBaliCoupleSection: UserComponent<CraftBaliCoupleProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.brideGroom || props;
+  const brideName = data.brideName ?? props.brideName ?? "Ni Putu Chyntia Dewi, S.Ked";
+  const brideBio = data.brideBio ?? props.brideBio ?? "Putri pertama dari Bapak I Wayan Suartana & Ibu Ni Ketut Murniati";
+  const groomName = data.groomName ?? props.groomName ?? "I Made Rian Arisatya, S.T";
+  const groomBio = data.groomBio ?? props.groomBio ?? "Putra pertama dari Bapak I Made Hendra & Ibu Ni Luh Sukerti";
+  const brideImage = data.brideImage ?? props.brideImage ?? "/templates/wedding/gallery-1.jpg";
+  const groomImage = data.groomImage ?? props.groomImage ?? "/templates/wedding/couple-main.jpg";
   const {
     connectors: { connect, drag },
     selected,
@@ -1169,18 +1182,19 @@ export interface CraftBaliEventDetailsProps {
   resepsiAddress?: string;
 }
 
-export const CraftBaliEventDetailsSection: UserComponent<CraftBaliEventDetailsProps> = ({
-  pawiwahanName = "Pawiwahan (Akad Nikah)",
-  pawiwahanDate = "Minggu, 22 November 2026",
-  pawiwahanTime = "09.00 - 11.00 WITA",
-  pawiwahanLocation = "Bale Banjar Adat & Kediaman",
-  pawiwahanAddress = "Jl. Raya Seminyak No. 88, Badung, Bali",
-  resepsiName = "Resepsi",
-  resepsiDate = "Minggu, 22 November 2026",
-  resepsiTime = "18.00 WITA - Selesai",
-  resepsiLocation = "The Kayana Sunset Garden Villa",
-  resepsiAddress = "Jl. Petitenget No. 100, Badung, Bali",
-}) => {
+export const CraftBaliEventDetailsSection: UserComponent<CraftBaliEventDetailsProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.eventDetails || props;
+  const pawiwahanName = data.pawiwahanName ?? props.pawiwahanName ?? "Pawiwahan (Akad Nikah)";
+  const pawiwahanDate = data.pawiwahanDate ?? props.pawiwahanDate ?? "Minggu, 22 November 2026";
+  const pawiwahanTime = data.pawiwahanTime ?? props.pawiwahanTime ?? "09.00 - 11.00 WITA";
+  const pawiwahanLocation = data.pawiwahanLocation ?? props.pawiwahanLocation ?? "Bale Banjar Adat & Kediaman";
+  const pawiwahanAddress = data.pawiwahanAddress ?? props.pawiwahanAddress ?? "Jl. Raya Seminyak No. 88, Badung, Bali";
+  const resepsiName = data.resepsiName ?? props.resepsiName ?? "Resepsi";
+  const resepsiDate = data.resepsiDate ?? props.resepsiDate ?? "Minggu, 22 November 2026";
+  const resepsiTime = data.resepsiTime ?? props.resepsiTime ?? "18.00 WITA - Selesai";
+  const resepsiLocation = data.resepsiLocation ?? props.resepsiLocation ?? "The Kayana Sunset Garden Villa";
+  const resepsiAddress = data.resepsiAddress ?? props.resepsiAddress ?? "Jl. Petitenget No. 100, Badung, Bali";
   const {
     connectors: { connect, drag },
     selected,
@@ -1263,9 +1277,10 @@ export interface CraftBaliCountdownProps {
   countdownTitle?: string;
 }
 
-export const CraftBaliCountdownSection: UserComponent<CraftBaliCountdownProps> = ({
-  countdownTitle = "COUNTDOWN HARI BAHAGIA",
-}) => {
+export const CraftBaliCountdownSection: UserComponent<CraftBaliCountdownProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.countdown || props;
+  const countdownTitle = data.countdownTitle ?? props.countdownTitle ?? "COUNTDOWN HARI BAHAGIA";
   const {
     connectors: { connect, drag },
     selected,
@@ -1334,10 +1349,11 @@ export interface CraftBaliStoryProps {
   storyMessage?: string;
 }
 
-export const CraftBaliStorySection: UserComponent<CraftBaliStoryProps> = ({
-  storyTitle = "KISAH KAMI",
-  storyMessage = "Kami bertemu pada sebuah momen sederhana. Dari obrolan ringan, tumbuhlah rasa yang kini kami bawa ke pelaminan dalam ikatan suci Dharma.",
-}) => {
+export const CraftBaliStorySection: UserComponent<CraftBaliStoryProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.story || props;
+  const storyTitle = data.storyTitle ?? props.storyTitle ?? "KISAH KAMI";
+  const storyMessage = data.storyMessage ?? props.storyMessage ?? "Kami bertemu pada sebuah momen sederhana. Dari obrolan ringan, tumbuhlah rasa yang kini kami bawa ke pelaminan dalam ikatan suci Dharma.";
   const {
     connectors: { connect, drag },
     selected,
@@ -1390,10 +1406,11 @@ export interface CraftBaliGalleryProps {
   gallerySubtitle?: string;
 }
 
-export const CraftBaliGallerySection: UserComponent<CraftBaliGalleryProps> = ({
-  galleryTitle = "GALERI",
-  gallerySubtitle = "Potret kebersamaan dan momen sakral kami berdua.",
-}) => {
+export const CraftBaliGallerySection: UserComponent<CraftBaliGalleryProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.gallery || props;
+  const galleryTitle = data.galleryTitle ?? props.galleryTitle ?? "GALERI";
+  const gallerySubtitle = data.gallerySubtitle ?? props.gallerySubtitle ?? "Potret kebersamaan dan momen sakral kami berdua.";
   const {
     connectors: { connect, drag },
     selected,
@@ -1457,11 +1474,12 @@ export interface CraftBaliRsvpProps {
   submitButtonText?: string;
 }
 
-export const CraftBaliRsvpSection: UserComponent<CraftBaliRsvpProps> = ({
-  rsvpTitle = "KONFIRMASI KEHADIRAN",
-  rsvpDeadline = "Mohon konfirmasi kehadiran sebelum 15 November 2026",
-  submitButtonText = "KIRIM KONFIRMASI",
-}) => {
+export const CraftBaliRsvpSection: UserComponent<CraftBaliRsvpProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.rsvp || props;
+  const rsvpTitle = data.rsvpTitle ?? props.rsvpTitle ?? "KONFIRMASI KEHADIRAN";
+  const rsvpDeadline = data.rsvpDeadline ?? props.rsvpDeadline ?? "Mohon konfirmasi kehadiran sebelum 15 November 2026";
+  const submitButtonText = data.submitButtonText ?? props.submitButtonText ?? "KIRIM KONFIRMASI";
   const {
     connectors: { connect, drag },
     selected,
@@ -1532,11 +1550,12 @@ export interface CraftBaliVoiceNoteProps {
   submitButtonText?: string;
 }
 
-export const CraftBaliVoiceNoteSection: UserComponent<CraftBaliVoiceNoteProps> = ({
-  voiceTitle = "PESAN PRIBADI",
-  voiceSubtitle = "Rekam pesan suara atau video singkat untuk kedua mempelai (maks. 10 detik)",
-  submitButtonText = "KIRIM BERSAMA RSVP",
-}) => {
+export const CraftBaliVoiceNoteSection: UserComponent<CraftBaliVoiceNoteProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.voiceNote || props;
+  const voiceTitle = data.voiceTitle ?? props.voiceTitle ?? "PESAN PRIBADI";
+  const voiceSubtitle = data.voiceSubtitle ?? props.voiceSubtitle ?? "Rekam pesan suara atau video singkat untuk kedua mempelai (maks. 10 detik)";
+  const submitButtonText = data.submitButtonText ?? props.submitButtonText ?? "KIRIM BERSAMA RSVP";
   const {
     connectors: { connect, drag },
     selected,
@@ -1615,10 +1634,11 @@ export interface CraftBaliWishesProps {
   submitButtonText?: string;
 }
 
-export const CraftBaliWishesSection: UserComponent<CraftBaliWishesProps> = ({
-  wishesTitle = "UCAPAN & DOA",
-  submitButtonText = "KIRIM UCAPAN",
-}) => {
+export const CraftBaliWishesSection: UserComponent<CraftBaliWishesProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.wishes || props;
+  const wishesTitle = data.wishesTitle ?? props.wishesTitle ?? "UCAPAN & DOA";
+  const submitButtonText = data.submitButtonText ?? props.submitButtonText ?? "KIRIM UCAPAN";
   const {
     connectors: { connect, drag },
     selected,
@@ -1724,14 +1744,15 @@ export interface CraftBaliGiftProps {
   buttonText?: string;
 }
 
-export const CraftBaliGiftSection: UserComponent<CraftBaliGiftProps> = ({
-  giftTitle = "KIRIM HADIAH",
-  giftSubtitle = "Kehadiran Bapak/Ibu/Saudara/i sudah menjadi hadiah terindah. Bila berkenan berbagi kebahagiaan, dapat melalui:",
-  bankName = "[NAMA BANK]",
-  accountHolder = "Pramarta Chyntia Andita",
-  accountNumber = "[NOMOR REKENING]",
-  buttonText = "SALIN NOMOR REKENING",
-}) => {
+export const CraftBaliGiftSection: UserComponent<CraftBaliGiftProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.digitalGift || props;
+  const giftTitle = data.giftTitle ?? props.giftTitle ?? "KIRIM HADIAH";
+  const giftSubtitle = data.giftSubtitle ?? props.giftSubtitle ?? "Kehadiran Bapak/Ibu/Saudara/i sudah menjadi hadiah terindah. Bila berkenan berbagi kebahagiaan, dapat melalui:";
+  const bankName = data.bankName ?? props.bankName ?? "[NAMA BANK]";
+  const accountHolder = data.accountHolder ?? props.accountHolder ?? "Pramarta Chyntia Andita";
+  const accountNumber = data.accountNumber ?? props.accountNumber ?? "[NOMOR REKENING]";
+  const buttonText = data.buttonText ?? props.buttonText ?? "SALIN NOMOR REKENING";
   const {
     connectors: { connect, drag },
     selected,
@@ -1824,13 +1845,14 @@ export interface CraftBaliClosingProps {
   mantra?: string;
 }
 
-export const CraftBaliClosingSection: UserComponent<CraftBaliClosingProps> = ({
-  closingTitle = "Suksma",
-  closingSubtitle = "TERIMA KASIH",
-  closingMessage = "Merupakan kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir dan memberikan doa restu.",
-  coupleNames = "Chyntia & Rian",
-  mantra = "OM SHANTI, SHANTI, SHANTI, OM",
-}) => {
+export const CraftBaliClosingSection: UserComponent<CraftBaliClosingProps> = (props) => {
+  const liveCtx = useContext(BuilderLiveContext);
+  const data = liveCtx?.sectionData?.closing || props;
+  const closingTitle = data.closingTitle ?? props.closingTitle ?? "Suksma";
+  const closingSubtitle = data.closingSubtitle ?? props.closingSubtitle ?? "TERIMA KASIH";
+  const closingMessage = data.closingMessage ?? props.closingMessage ?? "Merupakan kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir dan memberikan doa restu.";
+  const coupleNames = data.coupleNames ?? props.coupleNames ?? "Chyntia & Rian";
+  const mantra = data.mantra ?? props.mantra ?? "OM SHANTI, SHANTI, SHANTI, OM";
   const {
     connectors: { connect, drag },
     selected,

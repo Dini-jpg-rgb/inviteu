@@ -241,48 +241,51 @@ const ACTIVE_PACKAGE_KEY = "inviteu_active_package";
 const INVITATIONS_STORAGE_KEY = "inviteu_partner_invitations_v5";
 
 export function PartnerProvider({ children }: { children: React.ReactNode }) {
-  const [activePackage, setActivePackage] = useState<PackageId | null>(() => {
-    if (typeof window === "undefined") return "pro"; // Default pro aktif sesuai alur
-    try {
-      const saved = localStorage.getItem(ACTIVE_PACKAGE_KEY);
-      if (saved === "none" || saved === "null") return null;
-      if (saved === "basic" || saved === "medium" || saved === "pro" || saved === "premium") return saved as PackageId;
-      return "pro";
-    } catch {
-      return "pro";
-    }
-  });
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [activePackage, setActivePackage] = useState<PackageId | null>("pro");
+  const [invoices, setInvoices] = useState<InvoiceReceiptItem[]>(DEFAULT_INVOICES);
+  const [invitations, setInvitations] = useState<PartnerInvitation[]>(DEFAULT_INVITATIONS);
 
-  const [invoices, setInvoices] = useState<InvoiceReceiptItem[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_INVOICES;
-    try {
-      const saved = localStorage.getItem(INVOICES_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_INVOICES;
-  });
-
-  const [invitations, setInvitations] = useState<PartnerInvitation[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_INVITATIONS;
-    try {
-      const saved = localStorage.getItem(INVITATIONS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_INVITATIONS;
-  });
-
-  // Sync state to localStorage
+  // Sync state from localStorage after client mounts (prevents Next.js SSR hydration mismatch)
   useEffect(() => {
+    try {
+      const savedPackage = localStorage.getItem(ACTIVE_PACKAGE_KEY);
+      if (savedPackage === "none" || savedPackage === "null") {
+        setActivePackage(null);
+      } else if (
+        savedPackage === "basic" ||
+        savedPackage === "medium" ||
+        savedPackage === "pro" ||
+        savedPackage === "premium"
+      ) {
+        setActivePackage(savedPackage as PackageId);
+      }
+
+      const savedInvoices = localStorage.getItem(INVOICES_STORAGE_KEY);
+      if (savedInvoices) {
+        const parsed = JSON.parse(savedInvoices);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setInvoices(parsed);
+        }
+      }
+
+      const savedInvitations = localStorage.getItem(INVITATIONS_STORAGE_KEY);
+      if (savedInvitations) {
+        const parsed = JSON.parse(savedInvitations);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setInvitations(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsHydrated(true);
+    }
+  }, []);
+
+  // Sync state to localStorage only AFTER hydration (prevents overwriting saved values on initial render)
+  useEffect(() => {
+    if (!isHydrated) return;
     try {
       if (activePackage) {
         localStorage.setItem(ACTIVE_PACKAGE_KEY, activePackage);
@@ -294,7 +297,7 @@ export function PartnerProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Error saving partner state to localStorage:", e);
     }
-  }, [activePackage, invoices, invitations]);
+  }, [activePackage, invoices, invitations, isHydrated]);
 
   // Derived transactions for backward compatibility
   const transactions: PackageTransaction[] = invoices.map((inv) => ({

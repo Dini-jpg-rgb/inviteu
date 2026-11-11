@@ -282,6 +282,9 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
   // Selected Section in Left Sidebar (Default: event-details)
   const [activeSection, setActiveSection] = useState<SectionKey>("event-details");
 
+  // Responsive active panel for mobile and tablet screens (< xl): "structure" | "canvas" | "settings"
+  const [mobileActivePanel, setMobileActivePanel] = useState<"structure" | "canvas" | "settings">("canvas");
+
   // Track frame key version to re-render Craft canvas upon sidebar reordering
   const [frameVersion, setFrameVersion] = useState(0);
 
@@ -989,6 +992,62 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
         default:
           return null;
       }
+    }
+    if (isBali) {
+      switch (key) {
+        case "cover":
+          return <CraftBaliCoverSection key="cover" {...sectionData.cover} />;
+        case "opening":
+          return <CraftBaliOpeningSection key="opening" {...sectionData.opening} />;
+        case "bride-groom":
+          return <CraftBaliCoupleSection key="bride-groom" {...sectionData.brideGroom} />;
+        case "event-details":
+          return <CraftBaliEventDetailsSection key="event-details" {...sectionData.eventDetails} />;
+        case "countdown":
+          return <CraftBaliCountdownSection key="countdown" {...sectionData.countdown} />;
+        case "story":
+          return <CraftBaliStorySection key="story" {...sectionData.story} />;
+        case "gallery":
+          return <CraftBaliGallerySection key="gallery" {...sectionData.gallery} />;
+        case "rsvp":
+          return <CraftBaliRsvpSection key="rsvp" {...sectionData.rsvp} />;
+        case "voice-note":
+          return <CraftBaliVoiceNoteSection key="voice-note" {...sectionData.voiceNote} />;
+        case "wishes":
+          return <CraftBaliWishesSection key="wishes" {...sectionData.wishes} />;
+        case "digital-gift":
+          return <CraftBaliGiftSection key="digital-gift" {...sectionData.digitalGift} />;
+        case "closing":
+          return <CraftBaliClosingSection key="closing" {...sectionData.closing} />;
+        default:
+          return null;
+      }
+    }
+
+    // Default Wedding (Botanical Sage Green / Mogran & Laura)
+    switch (key) {
+      case "cover":
+        return <CraftCoverSection key="cover" {...sectionData.cover} />;
+      case "opening":
+        return <CraftOpeningSection key="opening" {...sectionData.opening} />;
+      case "bride-groom":
+        return <CraftBrideGroomSection key="bride-groom" {...sectionData.brideGroom} />;
+      case "event-details":
+        return <CraftEventDetailsSection key="event-details" {...sectionData.eventDetails} />;
+      case "countdown":
+        return <CraftCountdownSection key="countdown" {...sectionData.countdown} />;
+      case "story":
+        return <CraftStorySection key="story" {...sectionData.story} />;
+      case "gallery":
+        return <CraftGallerySection key="gallery" {...sectionData.gallery} />;
+      case "rsvp":
+        return <CraftRsvpSection key="rsvp" {...sectionData.rsvp} />;
+      case "digital-gift":
+        return <CraftDigitalGiftSection key="digital-gift" {...sectionData.digitalGift} />;
+      case "closing":
+        return <CraftClosingSection key="closing" {...sectionData.closing} />;
+      default:
+        return null;
     }
   };
 
@@ -2116,19 +2175,19 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
         {/* ================================================================= */}
         {/* 1. TOP HEADER TOOLBAR                                             */}
         {/* ================================================================= */}
-        <header className="h-14 bg-[#2D1C15] text-white flex items-center justify-between px-4 sm:px-6 border-b border-[#432A20] shrink-0 z-40">
-          <div className="flex items-center space-x-3">
+        <header className="h-14 bg-[#2D1C15] text-white flex items-center justify-between px-3 sm:px-6 border-b border-[#432A20] shrink-0 z-40">
+          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
             {/* Back Button */}
             <Link
               href={backUrl}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 text-zinc-300 hover:text-white transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 text-zinc-300 hover:text-white transition-colors shrink-0"
               title="Kembali ke Katalog Desain"
             >
               <span className="text-lg">‹</span>
             </Link>
 
             {/* Editable Title */}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 min-w-0">
               {isEditingTitle ? (
                 <input
                   type="text"
@@ -2137,17 +2196,17 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
                   onBlur={() => setIsEditingTitle(false)}
                   onKeyDown={(e) => e.key === "Enter" && setIsEditingTitle(false)}
                   autoFocus
-                  className="bg-black/30 border border-amber-500/60 rounded px-2 py-0.5 text-sm font-semibold text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  className="bg-black/30 border border-amber-500/60 rounded px-2 py-0.5 text-xs sm:text-sm font-semibold text-white focus:outline-none focus:ring-1 focus:ring-amber-400 max-w-[140px] sm:max-w-[240px]"
                 />
               ) : (
                 <div
                   onClick={() => setIsEditingTitle(true)}
-                  className="flex items-center space-x-2 cursor-pointer group"
+                  className="flex items-center space-x-1.5 cursor-pointer group min-w-0"
                 >
-                  <span className="font-bold text-sm sm:text-base text-zinc-100 group-hover:text-amber-300 transition-colors">
+                  <span className="font-bold text-xs sm:text-base text-zinc-100 group-hover:text-amber-300 transition-colors truncate max-w-[110px] sm:max-w-[200px] md:max-w-none">
                     {projectTitle}
                   </span>
-                  <span className="text-xs text-zinc-400 group-hover:text-amber-300">
+                  <span className="text-[10px] sm:text-xs text-zinc-400 group-hover:text-amber-300 shrink-0">
                     ✎
                   </span>
                 </div>
@@ -2155,7 +2214,7 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
 
               {/* Status Badge */}
               <span
-                className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                className={`text-[10px] sm:text-[11px] font-semibold px-2 sm:px-2.5 py-0.5 rounded-full border shrink-0 ${
                   status === "Draft"
                     ? "bg-[#E8C28E]/20 text-[#E8C28E] border-[#E8C28E]/40"
                     : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
@@ -2167,25 +2226,25 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-1.5 sm:space-x-2.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsPreviewOpen(true)}
-              className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-white/10 transition-colors"
+              className="bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3.5 py-1.5 rounded-lg border border-white/10 transition-colors cursor-pointer"
             >
               Preview
             </button>
             <button
               type="button"
               onClick={handleSaveDraft}
-              className="bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-white/10 transition-colors"
+              className="bg-white/10 hover:bg-white/20 text-white text-[11px] sm:text-xs font-semibold px-2.5 sm:px-3.5 py-1.5 rounded-lg border border-white/10 transition-colors cursor-pointer"
             >
-              Save Draft
+              Save<span className="hidden sm:inline"> Draft</span>
             </button>
             <button
               type="button"
               onClick={handlePublish}
-              className="bg-[#E89F3C] hover:bg-[#d68f30] text-black text-xs font-bold px-4 py-1.5 rounded-lg shadow-sm transition-transform active:scale-95"
+              className="bg-[#E89F3C] hover:bg-[#d68f30] text-black text-[11px] sm:text-xs font-bold px-3 sm:px-4 py-1.5 rounded-lg shadow-sm transition-transform active:scale-95 cursor-pointer"
             >
               Publish
             </button>
@@ -2195,11 +2254,13 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
         {/* ================================================================= */}
         {/* 2. THREE-COLUMN WORKSPACE                                         */}
         {/* ================================================================= */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden relative">
           {/* ============================================================= */}
           {/* 2.A LEFT SIDEBAR: DARK BROWN (#2D1C15)                        */}
           {/* ============================================================= */}
-          <aside className="w-56 sm:w-64 bg-[#2D1C15] text-white flex flex-col shrink-0 border-r border-[#432A20] z-20">
+          <aside className={`w-full xl:w-64 bg-[#2D1C15] text-white flex flex-col shrink-0 border-r border-[#432A20] z-20 ${
+            mobileActivePanel === "structure" ? "flex" : "hidden xl:flex"
+          }`}>
             {/* Navigation Tabs */}
             <div className="flex border-b border-[#432A20] px-4 pt-3 text-xs font-semibold">
               <button
@@ -2229,7 +2290,7 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
             </div>
 
             {/* Content List Area */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin scrollbar-thumb-amber-900/50">
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin scrollbar-thumb-amber-900/50 pb-24 xl:pb-3">
               {activeTab === "konten" ? (
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold px-2 py-1 flex items-center justify-between">
@@ -2252,6 +2313,9 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
                         onDragEnd={handleDragEnd}
                         onClick={() => {
                           setActiveSection(sec.key);
+                          if (typeof window !== "undefined" && window.innerWidth < 1280) {
+                            setMobileActivePanel("canvas");
+                          }
                           setTimeout(() => {
                             const el = document.getElementById(`section-${sec.key}`);
                             const container = document.getElementById("builder-phone-scroll-container");
@@ -2354,7 +2418,9 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
           {/* ============================================================= */}
           {/* 2.B CENTER CANVAS (Warm Beige / Cream #F4EDE4)                 */}
           {/* ============================================================= */}
-          <main className="flex-1 bg-[#F4EDE4] flex items-center justify-center p-4 sm:p-8 overflow-y-auto relative">
+          <main className={`flex-1 bg-[#F4EDE4] flex items-center justify-center p-2 sm:p-6 md:p-8 pb-24 xl:pb-8 overflow-y-auto relative ${
+            mobileActivePanel === "canvas" ? "flex" : "hidden xl:flex"
+          }`}>
             {/* Subtle background dotted texture */}
             <div
               className="absolute inset-0 opacity-20 pointer-events-none"
@@ -2364,11 +2430,21 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
               }}
             />
 
-            {/* Smartphone Mockup (Black bezel, rounded chassis) */}
-            <div className="relative z-10 w-[390px] sm:w-[414px] h-[844px] max-h-[92vh] bg-black rounded-[52px] p-3 shadow-2xl flex flex-col border-[2.5px] border-zinc-800">
+            {/* Quick Action Button for Mobile/Tablet: Jump straight to Edit Form */}
+            <button
+              type="button"
+              onClick={() => setMobileActivePanel("settings")}
+              className="xl:hidden fixed top-16 right-4 z-30 bg-[#2D1C15]/90 hover:bg-[#2D1C15] text-amber-300 border border-amber-500/50 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xl backdrop-blur-xs flex items-center gap-1.5 cursor-pointer animate-fadeIn"
+            >
+              <span>⚙️</span>
+              <span>Edit Bagian Ini</span>
+            </button>
+
+            {/* Smartphone Mockup (Black bezel, rounded chassis) - Fully responsive width */}
+            <div className="relative z-10 w-[280px] xs:w-[300px] sm:w-[380px] md:w-[414px] h-[550px] sm:h-[780px] md:h-[844px] max-h-[70vh] sm:max-h-[90vh] bg-black rounded-[38px] sm:rounded-[52px] p-2 sm:p-3 shadow-2xl flex flex-col border-[2.5px] border-zinc-800 my-auto transition-all duration-300">
               {/* Inner Smartphone Screen */}
               <div
-                className={`relative w-full h-full rounded-[38px] overflow-hidden flex flex-col ${
+                className={`relative w-full h-full rounded-[30px] sm:rounded-[38px] overflow-hidden flex flex-col ${
                   isEmerald
                     ? "bg-[#0f4a38]"
                     : isBali
@@ -2380,7 +2456,7 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
               >
                 {/* Top iOS Status Bar & Dynamic Island */}
                 <div
-                  className={`h-9 px-6 pt-2 flex items-center justify-between text-[11px] font-semibold backdrop-blur-xs select-none shrink-0 z-30 ${
+                  className={`h-7 sm:h-9 px-4 sm:px-6 pt-1.5 sm:pt-2 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold backdrop-blur-xs select-none shrink-0 z-30 ${
                     isEmerald
                       ? "bg-[#0f4a38]/90 text-[#c59b4e]"
                       : isBali
@@ -2391,14 +2467,14 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
                   }`}
                 >
                   <span>9:41</span>
-                  <div className="w-20 h-4 bg-black rounded-full flex items-center justify-end px-1.5 space-x-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-900" />
+                  <div className="w-16 sm:w-20 h-3.5 sm:h-4 bg-black rounded-full flex items-center justify-end px-1.5 space-x-1">
+                    <div className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-blue-900" />
                     <div className="w-1 h-1 rounded-full bg-zinc-800" />
                   </div>
                   <div className="flex items-center space-x-1">
                     <span>5G</span>
                     <div
-                      className={`w-4 h-2 border rounded-2xs p-[1px] flex ${
+                      className={`w-3.5 sm:w-4 h-2 border rounded-2xs p-[1px] flex ${
                         isEmerald
                           ? "border-[#c59b4e]"
                           : isBali
@@ -2440,19 +2516,31 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
           {/* ============================================================= */}
           {/* 2.C RIGHT SIDEBAR: SETTINGS PANEL (Crisp White #FFFFFF)       */}
           {/* ============================================================= */}
-          <aside className="w-72 sm:w-80 bg-white text-zinc-900 border-l border-zinc-200 flex flex-col shrink-0 h-full overflow-hidden">
-            <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-bold text-zinc-900 tracking-tight">
+          <aside className={`w-full xl:w-80 bg-white text-zinc-900 border-l border-zinc-200 flex flex-col shrink-0 h-full overflow-hidden z-20 ${
+            mobileActivePanel === "settings" ? "flex" : "hidden xl:flex"
+          }`}>
+            <div className="p-4 sm:p-6 border-b border-zinc-100 flex items-center justify-between">
+              <div className="min-w-0 pr-2">
+                <h2 className="text-sm sm:text-base font-bold text-zinc-900 tracking-tight truncate">
                   {sectionsList.find((s) => s.key === activeSection)?.label || "Pengaturan"}
                 </h2>
-                <p className="text-[11px] text-zinc-500 mt-0.5">
+                <p className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5">
                   Ubah teks dan konten untuk bagian ini
                 </p>
               </div>
-              <span className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-medium">
-                Live Edit
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[10px] sm:text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-medium">
+                  Live Edit
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMobileActivePanel("canvas")}
+                  className="xl:hidden text-xs bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-semibold px-2 py-1 rounded-md transition-colors cursor-pointer"
+                  title="Lihat Hasil di Canvas"
+                >
+                  📱 Canvas
+                </button>
+              </div>
             </div>
 
             {/* Dynamic Form based on activeSection & template theme */}
@@ -6078,19 +6166,75 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
             </div>
 
             {/* Bottom Panel Actions */}
-            <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex items-center justify-between">
+            <div className="p-4 border-t border-zinc-100 bg-zinc-50 flex items-center justify-between pb-24 xl:pb-4">
               <span className="text-[11px] text-zinc-500">
                 Tersinkronisasi otomatis
               </span>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="bg-[#2D1C15] text-white hover:bg-black px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-              >
-                Simpan Perubahan
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveDraft();
+                    if (typeof window !== "undefined" && window.innerWidth < 1280) {
+                      setMobileActivePanel("canvas");
+                    }
+                  }}
+                  className="bg-[#2D1C15] text-white hover:bg-black px-4 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Simpan Perubahan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileActivePanel("canvas")}
+                  className="xl:hidden bg-amber-100 hover:bg-amber-200 text-amber-900 px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Lihat Canvas →
+                </button>
+              </div>
             </div>
           </aside>
+        </div>
+
+        {/* ================================================================= */}
+        {/* Mobile & Tablet Floating Docked Navigation Bar (< xl)             */}
+        {/* ================================================================= */}
+        <div className="xl:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-[#1e130e]/95 backdrop-blur-md border border-amber-500/40 rounded-full p-1.5 shadow-2xl flex items-center gap-1 select-none">
+          <button
+            type="button"
+            onClick={() => setMobileActivePanel("structure")}
+            className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              mobileActivePanel === "structure"
+                ? "bg-[#E89F3C] text-black shadow-md font-bold"
+                : "text-zinc-300 hover:text-white"
+            }`}
+          >
+            <span>☰</span>
+            <span>Struktur</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActivePanel("canvas")}
+            className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              mobileActivePanel === "canvas"
+                ? "bg-[#E89F3C] text-black shadow-md font-bold"
+                : "text-zinc-300 hover:text-white"
+            }`}
+          >
+            <span>📱</span>
+            <span>Canvas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActivePanel("settings")}
+            className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              mobileActivePanel === "settings"
+                ? "bg-[#E89F3C] text-black shadow-md font-bold"
+                : "text-zinc-300 hover:text-white"
+            }`}
+          >
+            <span>⚙️</span>
+            <span>Edit Konten</span>
+          </button>
         </div>
       </Editor>
 

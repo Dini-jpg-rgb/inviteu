@@ -74,13 +74,13 @@ export default function PartnerTemplateDetailPage() {
         {/* ============================================================= */}
         {/* 2.A LEFT / CENTER CANVAS (Taupe / Gray Rounded Area)          */}
         {/* ============================================================= */}
-        <div className="relative w-full flex-1 bg-[#8d7c71] rounded-[28px] p-6 sm:p-8 flex flex-col items-center min-h-[780px] overflow-hidden shadow-sm">
+        <div className="relative w-full flex-1 bg-[#8d7c71] rounded-[22px] sm:rounded-[28px] p-3 sm:p-6 md:p-8 flex flex-col items-center min-h-0 sm:min-h-[780px] overflow-hidden shadow-sm">
           {/* Top-Left Device Mode Toggle (Mobile / Desktop) */}
-          <div className="self-start mb-6 z-20 flex items-center space-x-2">
+          <div className="self-center sm:self-start mb-3 sm:mb-6 z-20 flex items-center space-x-2">
             <button
               type="button"
               onClick={() => setDeviceMode("mobile")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === "mobile"
                   ? "bg-[#2D1C15] text-white shadow-md"
                   : "bg-white/90 text-zinc-700 hover:bg-white shadow-xs"
@@ -91,7 +91,7 @@ export default function PartnerTemplateDetailPage() {
             <button
               type="button"
               onClick={() => setDeviceMode("desktop")}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                 deviceMode === "desktop"
                   ? "bg-[#2D1C15] text-white shadow-md"
                   : "bg-white/90 text-zinc-700 hover:bg-white shadow-xs"
@@ -101,12 +101,12 @@ export default function PartnerTemplateDetailPage() {
             </button>
           </div>
 
-          {/* Smartphone Mockup (Mobile View - Matches User Image 2) */}
+          {/* Smartphone Mockup (Mobile View - Fits seamlessly on all mobile screens) */}
           {deviceMode === "mobile" ? (
-            <div className="relative w-[390px] sm:w-[414px] h-[844px] max-h-[92vh] bg-black rounded-[52px] p-3 shadow-2xl flex flex-col border-[2px] border-zinc-800">
+            <div className="relative w-[280px] xs:w-[300px] sm:w-[380px] md:w-[414px] h-[550px] sm:h-[780px] md:h-[844px] max-h-[68vh] sm:max-h-[92vh] bg-black rounded-[38px] sm:rounded-[52px] p-2 sm:p-3 shadow-2xl flex flex-col border-[2px] border-zinc-800 transition-all duration-300">
               {/* Inner Smartphone Screen */}
               <div
-                className={`relative w-full h-full rounded-[38px] overflow-hidden flex flex-col ${
+                className={`relative w-full h-full rounded-[30px] sm:rounded-[38px] overflow-hidden flex flex-col ${
                   isEmerald
                     ? "bg-[#0f4a38]"
                     : isBali
@@ -118,7 +118,7 @@ export default function PartnerTemplateDetailPage() {
               >
                 {/* Top iOS Status Bar & Dynamic Island */}
                 <div
-                  className={`h-9 px-6 pt-2 flex items-center justify-between text-[11px] font-semibold select-none shrink-0 z-30 ${
+                  className={`h-7 sm:h-9 px-4 sm:px-6 pt-1.5 sm:pt-2 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold select-none shrink-0 z-30 ${
                     isEmerald
                       ? "bg-[#0f4a38]/90 text-[#c59b4e]"
                       : isBali
@@ -129,14 +129,14 @@ export default function PartnerTemplateDetailPage() {
                   }`}
                 >
                   <span>9:41</span>
-                  <div className="w-20 h-4 bg-black rounded-full flex items-center justify-end px-1.5 space-x-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-900" />
-                    <div className="w-1 h-1 rounded-full bg-zinc-800" />
+                  <div className="w-16 sm:w-20 h-3.5 sm:h-4 bg-black rounded-full flex items-center justify-end px-1.5 space-x-1">
+                    <div className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-blue-900" />
+                    <div className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-zinc-800" />
                   </div>
                   <div className="flex items-center space-x-1">
                     <span>5G</span>
                     <div
-                      className={`w-4 h-2 border rounded-2xs p-[1px] flex ${
+                      className={`w-3.5 sm:w-4 h-2 border rounded-2xs p-[1px] flex ${
                         isEmerald
                           ? "border-[#c59b4e]"
                           : isBali
@@ -176,23 +176,23 @@ export default function PartnerTemplateDetailPage() {
               </div>
             </div>
           ) : (
-            /* Desktop Mockup View */
-            <div className="w-full max-w-3xl h-[730px] max-h-[82vh] bg-white rounded-2xl shadow-2xl flex flex-col border border-zinc-300 overflow-hidden">
+            /* Desktop Mockup View - Responsive height on small screens */
+            <div className="w-full max-w-3xl h-[460px] sm:h-[620px] md:h-[730px] max-h-[68vh] sm:max-h-[82vh] bg-white rounded-xl sm:rounded-2xl shadow-2xl flex flex-col border border-zinc-300 overflow-hidden transition-all duration-300">
               {/* Browser Window Header */}
-              <div className="h-10 bg-zinc-100 border-b border-zinc-200 px-4 flex items-center space-x-3 shrink-0">
+              <div className="h-9 sm:h-10 bg-zinc-100 border-b border-zinc-200 px-3 sm:px-4 flex items-center space-x-2 sm:space-x-3 shrink-0">
                 <div className="flex items-center space-x-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-amber-400" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-400" />
+                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400" />
+                  <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-400" />
                 </div>
-                <div className="flex-1 max-w-sm mx-auto bg-white border border-zinc-200 rounded-md py-1 px-3 text-[11px] text-zinc-500 font-mono text-center">
+                <div className="flex-1 max-w-sm mx-auto bg-white border border-zinc-200 rounded-md py-0.5 sm:py-1 px-2.5 sm:px-3 text-[10px] sm:text-[11px] text-zinc-500 font-mono text-center truncate">
                   inviteu.id/preview/{template.slug}
                 </div>
               </div>
 
               {/* Scrollable Desktop Content */}
-              <div className="flex-1 overflow-y-auto bg-zinc-50 flex justify-center p-4">
-                <div className="w-full max-w-md shadow-md rounded-2xl overflow-hidden">
+              <div className="flex-1 overflow-y-auto bg-zinc-50 flex justify-center p-2 sm:p-4">
+                <div className="w-full max-w-md shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
                   {isJavanese ? (
                     <JavaneseElegantInvitation />
                   ) : isEmerald ? (
