@@ -7,7 +7,12 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { usePartner } from "@/context/PartnerContext";
 
-export function Sidebar() {
+export interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { logout } = useAuth();
   const { activePackage, invitations } = usePartner();
@@ -83,49 +88,78 @@ export function Sidebar() {
   const isProfileActive = pathname === "/profile";
 
   return (
-    <aside className="w-[230px] md:w-[250px] shrink-0 h-screen sticky top-0 overflow-y-auto bg-[#2d1b11] text-[#e3d1c4] p-4 sm:p-5 flex flex-col justify-between border-r border-[#422718] select-none print:hidden">
-      <div className="flex flex-col gap-5">
-        {/* InviteU Circular Logo - Centered in Sidebar */}
-        <div className="pt-2 flex items-center justify-center">
-          <Link href="/dashboard" className="inline-flex items-center justify-center">
-            <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md hover:scale-105 transition-transform">
-              <Image
-                src="/logo-inviteu.svg.svg"
-                alt="InviteU Logo"
-                width={48}
-                height={48}
-                priority
-                unoptimized
-                className="w-full h-full object-contain"
-              />
-            </div>
-          </Link>
+    <>
+      {/* Mobile Backdrop */}
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed md:sticky top-0 inset-y-0 left-0 z-50 md:z-auto w-[270px] md:w-[250px] shrink-0 h-screen overflow-y-auto bg-[#2d1b11] text-[#e3d1c4] p-4 sm:p-5 flex flex-col justify-between border-r border-[#422718] select-none shadow-2xl md:shadow-none transition-transform duration-300 ease-in-out print:hidden ${
+          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        }`}
+      >
+        <div className="flex flex-col gap-5 relative">
+          {/* Mobile Close Button (✕) */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="md:hidden absolute -top-1 right-0 text-[#d8c2b3] hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Tutup Menu"
+          >
+            <span className="text-lg leading-none">✕</span>
+          </button>
+
+          {/* InviteU Circular Logo - Centered in Sidebar */}
+          <div className="pt-2 flex items-center justify-center">
+            <Link
+              href="/dashboard"
+              onClick={() => onClose?.()}
+              className="inline-flex items-center justify-center"
+            >
+              <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md hover:scale-105 transition-transform">
+                <Image
+                  src="/logo-inviteu.svg.svg"
+                  alt="InviteU Logo"
+                  width={48}
+                  height={48}
+                  priority
+                  unoptimized
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </Link>
+          </div>
+
+          {/* Navigation List (Ukuran menu dan pilihan diperkecil persis seperti contoh gambar) */}
+          <nav className="flex flex-col gap-1.5 mt-1">
+            {navigation.map((item) => {
+              const isActive =
+                item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(item.href);
+
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  onClick={() => onClose?.()}
+                  className={`flex items-center px-3.5 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 ${
+                    isActive
+                      ? "bg-[#f5a638] text-[#2d1b11] font-bold shadow-xs"
+                      : "text-[#d8c2b3] hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-
-        {/* Navigation List (Ukuran menu dan pilihan diperkecil persis seperti contoh gambar) */}
-        <nav className="flex flex-col gap-1.5 mt-1">
-          {navigation.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(item.href);
-
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center px-3.5 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 ${
-                  isActive
-                    ? "bg-[#f5a638] text-[#2d1b11] font-bold shadow-xs"
-                    : "text-[#d8c2b3] hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
 
       {/* Bottom Area: Package Aktif & User Profile */}
       <div className="mt-auto pt-3 space-y-2">
@@ -137,11 +171,17 @@ export function Sidebar() {
                 <p className="text-[10px] text-zinc-500 font-medium leading-none">
                   Package aktif
                 </p>
-                <h4 className="text-xs font-bold text-zinc-900 leading-tight mt-0.5">
+                <h4
+                  suppressHydrationWarning
+                  className="text-xs font-bold text-zinc-900 leading-tight mt-0.5"
+                >
                   {activePackageName}
                 </h4>
               </div>
-              <span className="text-[10px] font-bold text-zinc-800 bg-[#f7efe6] px-1.5 py-0.5 rounded border border-[#e5d8c8]">
+              <span
+                suppressHydrationWarning
+                className="text-[10px] font-bold text-zinc-800 bg-[#f7efe6] px-1.5 py-0.5 rounded border border-[#e5d8c8]"
+              >
                 {usedQuota} / {maxQuota}
               </span>
             </div>
@@ -150,6 +190,7 @@ export function Sidebar() {
               {/* Progress bar: Sisa kuota (load masih panjang jika baru terpakai sedikit) */}
               <div className="w-full h-1.5 rounded-full bg-[#f0e6d8] overflow-hidden">
                 <div
+                  suppressHydrationWarning
                   className="h-full bg-[#f5a638] rounded-full transition-all duration-300"
                   style={{
                     width: `${Math.min(100, Math.max(0, (remainingQuota / maxQuota) * 100))}%`,
@@ -159,7 +200,7 @@ export function Sidebar() {
 
               <div className="flex items-center justify-between text-[9px] text-zinc-400 font-medium">
                 <span>Quota terpakai</span>
-                <span>Sisa {remainingQuota}</span>
+                <span suppressHydrationWarning>Sisa {remainingQuota}</span>
               </div>
             </div>
           </div>
@@ -176,6 +217,7 @@ export function Sidebar() {
           {/* Avatar Icon & User Info - Clickable to /profile */}
           <Link
             href="/profile"
+            onClick={() => onClose?.()}
             title="Buka Profil Partner"
             className="flex items-center gap-2.5 min-w-0 flex-1 group cursor-pointer"
           >
@@ -219,5 +261,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
