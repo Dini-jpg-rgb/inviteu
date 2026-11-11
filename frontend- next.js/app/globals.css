@@ -56,6 +56,8 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
 /* ============================================================== */
 /* PRINT STYLES: Cetak khusus invoice/receipt tanpa sidebar/tombol */
 /* ============================================================== */

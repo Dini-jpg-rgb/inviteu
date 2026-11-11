@@ -150,7 +150,7 @@ export default function PartnerPackagesPage() {
 
               {/* Bottom Actions: Lihat tema & Pilih package */}
               <div className="mt-4 pt-2 space-y-2">
-                <Link href="/templates" className="block w-full">
+                <Link href={`/templates?tier=${pkg.id}`} className="block w-full">
                   <button
                     type="button"
                     className="w-full bg-white hover:bg-zinc-50 text-zinc-800 text-xs font-semibold py-2 rounded-xl border border-zinc-300 transition-colors shadow-2xs cursor-pointer"

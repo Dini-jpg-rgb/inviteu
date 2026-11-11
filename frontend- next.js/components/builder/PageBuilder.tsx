@@ -804,13 +804,65 @@ export function PageBuilder({ role, initialTemplate = "wedding" }: PageBuilderPr
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const syncPartnerInvitation = (invStatus: "Draft" | "Published") => {
+    if (role === "partner" && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("inviteu_partner_invitations_v5");
+        const list = raw ? JSON.parse(raw) : [];
+        const templateName =
+          initialTemplate === "javanesse-elegant" || initialTemplate === "javanese-elegant"
+            ? "Javanese Elegant"
+            : initialTemplate === "emerald-gold-basic"
+            ? "Emerald Gold Basic"
+            : initialTemplate === "bali-tropical"
+            ? "Bali Tropical"
+            : "Botanical Sage";
+        const templateCover =
+          initialTemplate === "emerald-gold-basic"
+            ? "/templates/wedding/emerald-main.jpg"
+            : "/templates/wedding/couple-main.jpg";
+
+        const existingIdx = list.findIndex(
+          (item: any) => item.title?.toLowerCase() === projectTitle.trim().toLowerCase()
+        );
+
+        const entry = {
+          id: existingIdx >= 0 ? list[existingIdx].id : `inv-${Date.now()}`,
+          title: projectTitle.trim() || "Undangan Baru",
+          template: templateName,
+          cover: templateCover,
+          eventDate: "28 Des 2026",
+          status: invStatus,
+          expiration: "28 Jun 2027",
+          rsvpCount: invStatus === "Published" ? (existingIdx >= 0 ? list[existingIdx].rsvpCount || 12 : 12) : 0,
+          rsvpSummary: {
+            hadir: invStatus === "Published" ? 12 : 0,
+            tidakHadir: 0,
+            belumMerespons: 0,
+          },
+        };
+
+        if (existingIdx >= 0) {
+          list[existingIdx] = { ...list[existingIdx], ...entry };
+        } else {
+          list.unshift(entry);
+        }
+        localStorage.setItem("inviteu_partner_invitations_v5", JSON.stringify(list));
+      } catch (err) {
+        console.error("Failed to sync partner invitation:", err);
+      }
+    }
+  };
+
   const handleSaveDraft = () => {
     setStatus("Draft");
+    syncPartnerInvitation("Draft");
     triggerToast("Draf berhasil disimpan! Urutan dan skema data siap digunakan.");
   };
 
   const handlePublish = () => {
     setStatus("Published");
+    syncPartnerInvitation("Published");
     triggerToast("Undangan berhasil di-Publish! Tautan aktif siap dibagikan.");
   };
 

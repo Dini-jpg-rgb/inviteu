@@ -60,7 +60,7 @@ export default function InvitationsPage() {
           </p>
         </div>
 
-        <Link href="/invitations/create">
+        <Link href="/templates">
           <button
             type="button"
             className="bg-[#2d1b11] hover:bg-black text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
