@@ -418,7 +418,8 @@ Ringkasan endpoint undangan dan builder:
 | GET    | `/api/v1/invitations/:id/content`   | Partner | Membaca struktur section, field, dan nilai konten | Diimplementasikan |
 | PATCH  | `/api/v1/invitations/:id/content`   | Partner | Menyimpan/memperbarui isi field konten (draft) | Diimplementasikan |
 | GET    | `/api/v1/invitations/:id/versions`  | Partner | Riwayat versi undangan | *Belum diimplementasikan* |
-| POST   | `/api/v1/invitations/:id/publish`   | Partner | Publikasi undangan dan pemotongan kuota | *Belum diimplementasikan* |
+| POST   | `/api/v1/invitations/:id/publish`   | Partner | Publikasi undangan dan pemotongan kuota | Diimplementasikan |
+| POST   | `/api/v1/invitations/:id/media`     | Partner | Mengunggah media undangan (JPEG, PNG, MP3) ke Google Drive partner | Diimplementasikan |
 
 #### 5.4.1 POST /api/v1/invitations
 - **Akses**: Partner terautentikasi (`RequireRole("partner")`).
@@ -1717,6 +1718,104 @@ Modul Template Write memfasilitasi peran Designer dan Admin untuk membuat templa
 - **403 Forbidden**: Role partner.
 - **404 Not Found**: Template tidak ditemukan atau bukan milik designer.
 - **409 Conflict**: Status bukan draft atau template sedang dirujuk oleh undangan/paket/favorit.
+
+---
+
+## 15. Invitation Media (Google Drive Partner)
+
+Modul Invitation Media memfasilitasi partner untuk mengunggah gambar galeri (`image/jpeg`, `image/png`) dan musik latar (`audio/mpeg`) langsung ke akun Google Drive milik partner sendiri (folder `InviteU`), serta mencatat metadatanya ke tabel `storage_files` dan `invitation_media`.
+
+### 15.1. Upload Invitation Media
+
+- **Method**: `POST`
+- **Path**: `/api/v1/invitations/:id/media`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan yang memiliki entitlement aktif add-on `google-drive-connect` pada undangan tersebut.
+- **Content-Type**: `multipart/form-data`
+- **Batas Ukuran Request**: Maksimal 10 MB + 64 KB overhead multipart (`http.MaxBytesReader`).
+
+#### Request Multipart Fields
+
+| Field | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `file` | binary (file part) | Ya | File media yang diunggah (maksimal 1 file per request, tidak boleh 0 byte, maksimal 10 MB). Hanya mendukung JPEG, PNG, dan MP3 berdasarkan deteksi *magic bytes*. |
+| `template_section_id` | integer (form field) | Tidak | ID section pada template undangan (`> 0` dan wajib milik `template_id` dari undangan tersebut). Jika kosong/tidak dikirim, disimpan sebagai `NULL`. |
+| `sort_order` | integer (form field) | Tidak | Urutan tampil media (`>= 0`, default `0`). |
+
+#### Response 201 Created
+
+```json
+{
+  "success": true,
+  "message": "Invitation media uploaded successfully",
+  "data": {
+    "media": {
+      "id": 1,
+      "invitation_id": 12,
+      "invitation_version_id": 15,
+      "template_section_id": 6,
+      "storage_file_id": 42,
+      "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+      "file_type": "image",
+      "mime_type": "image/jpeg",
+      "original_name": "prewedding-photo.jpg",
+      "size": 245760,
+      "sort_order": 0,
+      "created_at": "2026-11-11T05:00:00Z",
+      "updated_at": "2026-11-11T05:00:00Z"
+    }
+  }
+}
+```
+
+#### Tabel Kegagalan (Error Responses)
+
+| HTTP Status | `errors` Key | Nilai Kode Error (`errors.<key>`) | Penyebab |
+| :--- | :--- | :--- | :--- |
+| `400 Bad Request` | `id` | `"invalid_invitation_id"` | Path parameter `:id` bukan integer positif (`<= 0` atau bukan angka). |
+| `400 Bad Request` | `file` | `"file_required"` | Request bukan `multipart/form-data`, part `file` tidak disertakan, tidak dapat dibaca, atau berukuran 0 byte. |
+| `400 Bad Request` | `file` | `"multiple_files_not_allowed"` | Request mengirim lebih dari satu part `file`. |
+| `400 Bad Request` | `file` | `"file_too_large"` | Ukuran file melebihi 10 MB (10.485.760 byte) atau ukuran body multipart melebihi batas. |
+| `400 Bad Request` | `file` | `"unsupported_file_type"` | *Magic bytes* (512 byte pertama) bukan `image/jpeg`, `image/png`, atau `audio/mpeg` (ID3 / raw MPEG Layer III frame sync). |
+| `400 Bad Request` | `file` | `"invalid_image"` | File ber-header JPEG/PNG rusak atau gagal di-decode oleh `image.DecodeConfig`. |
+| `400 Bad Request` | `file` | `"image_dimensions_too_large"` | Dimensi lebar atau tinggi gambar melebihi `6000 x 6000` piksel. |
+| `400 Bad Request` | `template_section_id` | `"invalid_template_section_id"` | `template_section_id` bukan integer positif, terlalu panjang, atau bukan bagian dari `template_id` undangan. |
+| `400 Bad Request` | `sort_order` | `"invalid_sort_order"` | `sort_order` bukan integer, bernilai negatif (`< 0`), atau terlalu panjang. |
+| `401 Unauthorized` | - | - | Token JWT tidak disertakan atau tidak valid. |
+| `403 Forbidden` | - | - | Role pengguna bukan `partner`. |
+| `403 Forbidden` | `addon` | `"addon_required"` | Undangan target tidak memiliki entitlement aktif untuk add-on `google-drive-connect` (`status = 'active'` dan belum melewati `expires_at`). |
+| `404 Not Found` | - | - | Undangan tidak ditemukan atau milik partner lain (`"message": "Invitation not found"`). |
+| `409 Conflict` | `status` | `"invitation_is_not_draft"` | Undangan tidak berstatus `'draft'`, tidak memiliki versi `'draft'`, atau versi berpindah status saat upload berlangsung. |
+| `409 Conflict` | `drive` | `"drive_not_connected"` | Partner belum menghubungkan akun Google Drive (belum ada baris di `user_drive_credentials`). |
+| `409 Conflict` | `drive` | `"drive_revoked"` | Kredensial Google Drive berstatus `'revoked'` di database, atau Google mengembalikan `invalid_grant` saat pertukaran token (status di DB otomatis diperbarui menjadi `'revoked'`). |
+| `409 Conflict` | `media` | `"gallery_limit_reached"` | Jumlah media bertipe `image` pada versi draft telah mencapai batas `gallery_limit` dari paket aktif partner. |
+| `409 Conflict` | `media` | `"audio_limit_reached"` | Versi draft undangan sudah memiliki 1 file media bertipe `audio` (maksimal 1 MP3 per versi). |
+| `500 Internal Server Error` | `drive` | `"drive_upload_failed"` | Kegagalan komunikasi atau respons error dari Google Drive API selain `invalid_grant` (status `500` digunakan karena kontrak belum mendefinisikan `502 Bad Gateway`). |
+| `500 Internal Server Error` | - | - | Kesalahan konfigurasi server, dekripsi token, atau kegagalan transaksi database. |
+
+#### Aturan Bisnis & Catatan Arsitektur
+
+1. **Hanya Undangan Draft**:
+   - Upload media hanya diizinkan pada undangan berstatus `'draft'` dan ditautkan ke `invitation_version_id` dari versi `'draft'` terbaru (`ORDER BY version_number DESC LIMIT 1`).
+2. **Gate Add-on per Undangan**:
+   - Berbeda dengan endpoint connect Drive yang memeriksa kepemilikan add-on di level partner, upload media mewajibkan entitlement aktif `addons.slug = 'google-drive-connect'` (`status = 'active'` dan `expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP`) spesifik pada `invitation_id` yang dituju di setiap request upload.
+3. **Batas Ukuran, Format, dan Resolusi**:
+   - Ukuran file maksimal **10 MB** baik untuk gambar (`image/jpeg`, `image/png`) maupun audio (`audio/mpeg`).
+   - Validasi tipe menggunakan *magic bytes* (`http.DetectContentType` serta pemeriksaan header MPEG Audio Layer III frame sync untuk MP3 tanpa tag ID3), bukan ekstensi nama file dari klien.
+   - Gambar wajib lolos `image.DecodeConfig` dengan dimensi `1 <= width <= 6000` dan `1 <= height <= 6000` piksel.
+4. **Batas Audio (1 MP3 per Versi)**:
+   - Setiap `invitation_version_id` hanya boleh memiliki maksimal **1** file dengan `file_type = 'audio'`.
+5. **Batas Galeri (`gallery_limit` Fail-Open)**:
+   - Kuota gambar (`file_type = 'image'`) dihitung per `invitation_version_id` terhadap `MAX(pl.limit_value)` dari tabel `package_limits` (`resource_key = 'gallery_limit'`) pada paket aktif partner.
+   - Bersifat **fail-open**: apabila paket aktif partner tidak memiliki baris `gallery_limit` di `package_limits`, jumlah upload gambar tidak dibatasi.
+6. **Manajemen Folder `"InviteU"` & File Privat**:
+   - Pada upload pertama (saat `user_drive_credentials.drive_folder_id` bernilai `NULL`), backend secara *lazy* membuat folder bernama `"InviteU"` di Google Drive partner dan menyimpan ID-nya secara aman (`WHERE drive_folder_id IS NULL`). Jika folder dihapus oleh partner di Drive (HTTP 404 saat upload), backend otomatis membuat folder baru satu kali dan memperbarui `drive_folder_id`.
+   - File disimpan sebagai **file privat** di Google Drive partner (tidak membuat permission publik `anyone/reader` pada slice ini). Nama file di Drive diseragamkan dengan pola `inv-<invitation_id>-v<version_id>-<unix_utc>-<8hex>.<ext>`, sedangkan nama asli dari klien disimpan di `storage_files.original_name` setelah disanitasi.
+7. **Serialisasi Transaksi & Compensating Delete**:
+   - Upload ke Google Drive dilakukan di luar transaksi database agar koneksi DB tidak tertahan selama I/O jaringan.
+   - Setelah upload ke Drive berhasil, backend membuka transaksi singkat dan mengunci baris `invitations` (`FOR UPDATE`) diikuti `invitation_versions` (`FOR UPDATE`) dengan urutan yang identik seperti `PublishInvitation` dan `UpdateInvitationContent` guna mencegah *deadlock* dan memastikan upload serta publish terserialisasi.
+   - Apabila re-check status draft, re-check kuota media, atau `INSERT` ke `storage_files` / `invitation_media` gagal di dalam transaksi, backend memanggil `DeleteFile` ke Google Drive (*compensating action*) agar tidak menyisakan file yatim (*orphan file*).
+
 
 
 

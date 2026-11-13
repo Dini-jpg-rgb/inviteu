@@ -39,6 +39,7 @@ type DriveAuthConfig struct {
 	JWTSecret          string
 	AppEnv             string
 	OAuth              drive.OAuth
+	Storage            drive.Storage
 	Now                func() time.Time
 }
 
@@ -55,6 +56,13 @@ func (cfg DriveAuthConfig) oauthClient() drive.OAuth {
 		return cfg.OAuth
 	}
 	return drive.NewGoogleOAuth(cfg.ClientID, cfg.ClientSecret, cfg.RedirectURL)
+}
+
+func (cfg DriveAuthConfig) storageClient() drive.Storage {
+	if cfg.Storage != nil {
+		return cfg.Storage
+	}
+	return drive.NewGoogleStorage(cfg.ClientID, cfg.ClientSecret)
 }
 
 func (cfg DriveAuthConfig) now() time.Time {
@@ -98,6 +106,12 @@ func MountDriveRoutes(
 			middleware.AuthRequired(pool, cfg.JWTSecret),
 			middleware.RequireRole("partner"),
 			DisconnectDrive(pool, cfg),
+		)
+		api.POST(
+			"/invitations/:invitation_id/media",
+			middleware.AuthRequired(pool, cfg.JWTSecret),
+			middleware.RequireRole("partner"),
+			UploadInvitationMedia(pool, cfg),
 		)
 	}
 }
