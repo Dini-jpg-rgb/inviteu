@@ -420,6 +420,8 @@ Ringkasan endpoint undangan dan builder:
 | GET    | `/api/v1/invitations/:id/versions`  | Partner | Riwayat versi undangan | *Belum diimplementasikan* |
 | POST   | `/api/v1/invitations/:id/publish`   | Partner | Publikasi undangan dan pemotongan kuota | Diimplementasikan |
 | POST   | `/api/v1/invitations/:id/media`     | Partner | Mengunggah media undangan (JPEG, PNG, MP3) ke Google Drive partner | Diimplementasikan |
+| GET    | `/api/v1/invitations/:id/media`     | Partner | Melihat daftar media pada working version undangan | Diimplementasikan |
+| DELETE | `/api/v1/invitations/:id/media/:media_id` | Partner | Menghapus media dari versi draft undangan (dan best-effort hapus di Google Drive) | Diimplementasikan |
 
 #### 5.4.1 POST /api/v1/invitations
 - **Akses**: Partner terautentikasi (`RequireRole("partner")`).
@@ -1815,6 +1817,114 @@ Modul Invitation Media memfasilitasi partner untuk mengunggah gambar galeri (`im
    - Upload ke Google Drive dilakukan di luar transaksi database agar koneksi DB tidak tertahan selama I/O jaringan.
    - Setelah upload ke Drive berhasil, backend membuka transaksi singkat dan mengunci baris `invitations` (`FOR UPDATE`) diikuti `invitation_versions` (`FOR UPDATE`) dengan urutan yang identik seperti `PublishInvitation` dan `UpdateInvitationContent` guna mencegah *deadlock* dan memastikan upload serta publish terserialisasi.
    - Apabila re-check status draft, re-check kuota media, atau `INSERT` ke `storage_files` / `invitation_media` gagal di dalam transaksi, backend memanggil `DeleteFile` ke Google Drive (*compensating action*) agar tidak menyisakan file yatim (*orphan file*).
+
+---
+
+### 15.2. Get Invitation Media List
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/media`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (tidak di-gate add-on `google-drive-connect` dan tidak memerlukan koneksi Google Drive aktif).
+- **Resolusi Working Version**: Mengikuti aturan yang sama dengan `GET /api/v1/invitations/:id/content` (versi `'draft'` terbaru; bila tidak ada, fallback ke `published_version_id`; bila masih tidak ada, fallback ke versi `'published'` terbaru).
+- **Filter & Urutan**: Hanya menyertakan media dengan `storage_files.deleted_at IS NULL`, diurutkan berdasarkan `sort_order ASC, id ASC`, dibatasi maksimal `500` item (`maxListedMediaPerRequest = 500`).
+
+#### Query Parameters
+
+| Parameter | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `file_type` | string | Tidak | Filter tipe media: `"image"` atau `"audio"`. Nilai selain itu mengembalikan `400 Bad Request` (`errors.file_type = "invalid_file_type"`). |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation media retrieved successfully",
+  "data": {
+    "invitation_id": 12,
+    "version": {
+      "id": 15,
+      "version_number": 1,
+      "status": "draft"
+    },
+    "media": [
+      {
+        "id": 1,
+        "invitation_id": 12,
+        "invitation_version_id": 15,
+        "template_section_id": 6,
+        "storage_file_id": 42,
+        "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+        "file_type": "image",
+        "mime_type": "image/jpeg",
+        "original_name": "prewedding-photo.jpg",
+        "size": 245760,
+        "sort_order": 0,
+        "created_at": "2026-11-11T05:00:00Z",
+        "updated_at": "2026-11-11T05:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+*Catatan*: Bila belum ada media pada working version, `"media"` dikembalikan sebagai array kosong `[]` (bukan `null`).
+
+#### Tabel Kegagalan (Error Responses)
+
+| HTTP Status | `errors` Key | Nilai Kode Error (`errors.<key>`) | Penyebab |
+| :--- | :--- | :--- | :--- |
+| `400 Bad Request` | `id` | `"invalid_invitation_id"` | Path parameter `:id` bukan integer positif (`<= 0` atau bukan angka). |
+| `400 Bad Request` | `file_type` | `"invalid_file_type"` | Query parameter `file_type` diisi selain `"image"` atau `"audio"`. |
+| `401 Unauthorized` | - | - | Token JWT tidak disertakan atau tidak valid. |
+| `403 Forbidden` | - | - | Role pengguna bukan `partner`. |
+| `404 Not Found` | - | - | Undangan tidak ditemukan atau milik partner lain (`"message": "Invitation not found"`). |
+| `500 Internal Server Error` | - | - | Kesalahan database internal. |
+
+---
+
+### 15.3. Delete Invitation Media
+
+- **Method**: `DELETE`
+- **Path**: `/api/v1/invitations/:id/media/:media_id`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (tidak di-gate add-on `google-drive-connect`).
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Invitation media deleted successfully"
+}
+```
+
+#### Tabel Kegagalan (Error Responses)
+
+| HTTP Status | `errors` Key | Nilai Kode Error (`errors.<key>`) | Penyebab |
+| :--- | :--- | :--- | :--- |
+| `400 Bad Request` | `id` | `"invalid_invitation_id"` | Path parameter `:id` bukan integer positif (`<= 0` atau bukan angka). |
+| `400 Bad Request` | `media_id` | `"invalid_media_id"` | Path parameter `:media_id` bukan integer positif (`<= 0` atau bukan angka). |
+| `401 Unauthorized` | - | - | Token JWT tidak disertakan atau tidak valid. |
+| `403 Forbidden` | - | - | Role pengguna bukan `partner`. |
+| `404 Not Found` | - | - | Undangan tidak ditemukan / milik partner lain (`"message": "Invitation not found"`), atau `media_id` tidak ditemukan / sudah dihapus / milik undangan lain / milik versi lama non-draft (`"message": "Media not found"`). |
+| `409 Conflict` | `status` | `"invitation_is_not_draft"` | Undangan tidak berstatus `'draft'` (`'published'` / `'expired'`) atau tidak memiliki versi `'draft'`. |
+| `500 Internal Server Error` | - | - | Kesalahan transaksi database internal. |
+
+#### Aturan Penghapusan, Pengaman Referensi, & Best-Effort Drive Delete
+
+1. **Urutan Kunci Transaksi**:
+   - Di dalam transaksi database, handler mengunci baris `invitations` (`FOR UPDATE`) terlebih dahulu, lalu mengunci baris `invitation_versions` berstatus `'draft'` terbaru (`FOR UPDATE`) dengan urutan yang sama persis seperti `UploadInvitationMedia` dan `PublishInvitation`.
+2. **Hard-Delete `invitation_media` & Pengaman Referensi `storage_files`**:
+   - Baris `invitation_media` dihapus permanen (`DELETE FROM invitation_media WHERE id = $1 AND invitation_version_id = $2 RETURNING storage_file_id`).
+   - Sebelum menandai `storage_files.deleted_at` dan memanggil Google Drive, backend memeriksa apakah `storage_file_id` masih dirujuk oleh baris lain di `invitation_media`, `guest_media`, `template_assets`, atau `templates.thumbnail_file_id`.
+   - Jika masih dirujuk, `storage_files.deleted_at` dibiarkan `NULL` dan file di Google Drive **tidak** dihapus.
+   - Jika sudah tidak dirujuk lagi, `storage_files` di-*soft-delete* (`deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP`). Penghapusan ini langsung membebaskan kuota gambar (`gallery_limit`) maupun slot audio (1 MP3 per versi).
+3. **Best-Effort Google Drive Delete Setelah Commit**:
+   - Setelah transaksi DB di-commit, bila `provider = 'google_drive'`, file tidak lagi dirujuk, dan `user_drive_credentials.status = 'connected'`, backend memanggil `DeleteFile` ke Google Drive dengan `context.WithTimeout(context.Background(), 5*time.Second)` (walaupun add-on `google-drive-connect` sudah expired).
+   - Kegagalan di Google Drive (termasuk `invalid_grant` yang mengubah status kredensial menjadi `'revoked'`, error jaringan/5xx, atau ketiadaan kredensial) dicatat di log server sebagai *orphan file* tanpa mencetak token, dan response HTTP ke klien **tetap `200 OK`**.
+
 
 
 
