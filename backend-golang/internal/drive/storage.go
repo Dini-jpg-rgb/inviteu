@@ -23,12 +23,15 @@ const (
 	googleDriveFilesURL  = "https://www.googleapis.com/drive/v3/files"
 	googleFolderMimeType = "application/vnd.google-apps.folder"
 
-	defaultDriveHTTPTimeout = 30 * time.Second
+	defaultDriveHTTPTimeout            = 30 * time.Second
+	defaultStreamResponseHeaderTimeout = 15 * time.Second
 )
 
 var (
-	ErrTokenRevoked   = errors.New("google drive refresh token is revoked or invalid")
-	ErrFolderNotFound = errors.New("google drive folder not found")
+	ErrTokenRevoked        = errors.New("google drive refresh token is revoked or invalid")
+	ErrFolderNotFound      = errors.New("google drive folder not found")
+	ErrFileNotFound        = errors.New("google drive file not found")
+	ErrRangeNotSatisfiable = errors.New("google drive range not satisfiable")
 )
 
 type UploadFileParams struct {
@@ -45,16 +48,39 @@ type UploadedFile struct {
 	Size     int64
 }
 
+type DownloadFileStream struct {
+	StatusCode    int
+	Body          io.ReadCloser
+	ContentLength int64
+	ContentRange  string
+}
+
 type Storage interface {
 	CreateFolder(ctx context.Context, refreshToken string, folderName string) (string, error)
 	UploadFile(ctx context.Context, refreshToken string, params UploadFileParams) (*UploadedFile, error)
 	DeleteFile(ctx context.Context, refreshToken string, fileID string) error
+	OpenFile(ctx context.Context, refreshToken string, fileID string, rangeHeader string) (*DownloadFileStream, error)
 }
 
 type GoogleStorage struct {
-	ClientID     string
-	ClientSecret string
-	HTTPClient   *http.Client
+	ClientID         string
+	ClientSecret     string
+	HTTPClient       *http.Client
+	StreamHTTPClient *http.Client
+}
+
+func newDefaultStreamHTTPClient() *http.Client {
+	if base, ok := http.DefaultTransport.(*http.Transport); ok && base != nil {
+		cloned := base.Clone()
+		cloned.ResponseHeaderTimeout = defaultStreamResponseHeaderTimeout
+		return &http.Client{
+			Transport: cloned,
+			Timeout:   0,
+		}
+	}
+	return &http.Client{
+		Timeout: 0,
+	}
 }
 
 func NewGoogleStorage(clientID, clientSecret string) *GoogleStorage {
@@ -64,6 +90,7 @@ func NewGoogleStorage(clientID, clientSecret string) *GoogleStorage {
 		HTTPClient: &http.Client{
 			Timeout: defaultDriveHTTPTimeout,
 		},
+		StreamHTTPClient: newDefaultStreamHTTPClient(),
 	}
 }
 
@@ -74,6 +101,44 @@ func (g *GoogleStorage) httpClient() *http.Client {
 	return &http.Client{
 		Timeout: defaultDriveHTTPTimeout,
 	}
+}
+
+// streamHTTPClient returns an HTTP client without a total Client.Timeout so
+// streaming bodies are governed by the request context rather than cut off after
+// a fixed wall-clock duration.
+func (g *GoogleStorage) streamHTTPClient() *http.Client {
+	if g.StreamHTTPClient != nil {
+		// If a caller/test customized g.HTTPClient.Transport without overriding
+		// g.StreamHTTPClient, inherit the custom Transport with Timeout=0.
+		if g.HTTPClient != nil && g.HTTPClient.Transport != nil && g.StreamHTTPClient.Transport != g.HTTPClient.Transport {
+			if _, isStdTransport := g.StreamHTTPClient.Transport.(*http.Transport); isStdTransport {
+				return &http.Client{
+					Transport:     g.HTTPClient.Transport,
+					CheckRedirect: g.HTTPClient.CheckRedirect,
+					Jar:           g.HTTPClient.Jar,
+					Timeout:       0,
+				}
+			}
+		}
+		if g.StreamHTTPClient.Timeout == 0 {
+			return g.StreamHTTPClient
+		}
+		return &http.Client{
+			Transport:     g.StreamHTTPClient.Transport,
+			CheckRedirect: g.StreamHTTPClient.CheckRedirect,
+			Jar:           g.StreamHTTPClient.Jar,
+			Timeout:       0,
+		}
+	}
+	if g.HTTPClient != nil {
+		return &http.Client{
+			Transport:     g.HTTPClient.Transport,
+			CheckRedirect: g.HTTPClient.CheckRedirect,
+			Jar:           g.HTTPClient.Jar,
+			Timeout:       0,
+		}
+	}
+	return newDefaultStreamHTTPClient()
 }
 
 func (g *GoogleStorage) oauthConfig() *oauth2.Config {
@@ -368,4 +433,62 @@ func (g *GoogleStorage) DeleteFile(
 	}
 
 	return nil
+}
+
+func (g *GoogleStorage) OpenFile(
+	ctx context.Context,
+	refreshToken string,
+	fileID string,
+	rangeHeader string,
+) (*DownloadFileStream, error) {
+	trimmedID := strings.TrimSpace(fileID)
+	if trimmedID == "" {
+		return nil, errors.New("file id is empty")
+	}
+
+	accessToken, err := g.accessToken(ctx, refreshToken)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		googleDriveFilesURL+"/"+url.PathEscape(trimmedID)+"?alt=media",
+		nil,
+	)
+	if err != nil {
+		return nil, errors.New("could not build google drive download request")
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	if trimmedRange := strings.TrimSpace(rangeHeader); trimmedRange != "" {
+		req.Header.Set("Range", trimmedRange)
+	}
+
+	resp, err := g.streamHTTPClient().Do(req)
+	if err != nil {
+		return nil, errors.New("google drive download request failed")
+	}
+
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusPartialContent:
+		return &DownloadFileStream{
+			StatusCode:    resp.StatusCode,
+			Body:          resp.Body,
+			ContentLength: resp.ContentLength,
+			ContentRange:  strings.TrimSpace(resp.Header.Get("Content-Range")),
+		}, nil
+	case http.StatusNotFound:
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
+		_ = resp.Body.Close()
+		return nil, ErrFileNotFound
+	case http.StatusRequestedRangeNotSatisfiable:
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
+		_ = resp.Body.Close()
+		return nil, ErrRangeNotSatisfiable
+	default:
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64*1024))
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("google drive download returned status %d", resp.StatusCode)
+	}
 }

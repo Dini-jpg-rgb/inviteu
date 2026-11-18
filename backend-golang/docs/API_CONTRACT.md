@@ -422,6 +422,8 @@ Ringkasan endpoint undangan dan builder:
 | POST   | `/api/v1/invitations/:id/media`     | Partner | Mengunggah media undangan (JPEG, PNG, MP3) ke Google Drive partner | Diimplementasikan |
 | GET    | `/api/v1/invitations/:id/media`     | Partner | Melihat daftar media pada working version undangan | Diimplementasikan |
 | DELETE | `/api/v1/invitations/:id/media/:media_id` | Partner | Menghapus media dari versi draft undangan (dan best-effort hapus di Google Drive) | Diimplementasikan |
+| GET    | `/api/v1/invitations/:id/media/:media_id/content` | Partner | Streaming konten biner media pada working version undangan (owner preview) | Diimplementasikan |
+| GET    | `/api/v1/public/invitations/:slug/media/:media_id` | Publik | Streaming konten biner media pada versi published undangan untuk tamu | Diimplementasikan |
 
 #### 5.4.1 POST /api/v1/invitations
 - **Akses**: Partner terautentikasi (`RequireRole("partner")`).
@@ -1924,6 +1926,98 @@ Modul Invitation Media memfasilitasi partner untuk mengunggah gambar galeri (`im
 3. **Best-Effort Google Drive Delete Setelah Commit**:
    - Setelah transaksi DB di-commit, bila `provider = 'google_drive'`, file tidak lagi dirujuk, dan `user_drive_credentials.status = 'connected'`, backend memanggil `DeleteFile` ke Google Drive dengan `context.WithTimeout(context.Background(), 5*time.Second)` (walaupun add-on `google-drive-connect` sudah expired).
    - Kegagalan di Google Drive (termasuk `invalid_grant` yang mengubah status kredensial menjadi `'revoked'`, error jaringan/5xx, atau ketiadaan kredensial) dicatat di log server sebagai *orphan file* tanpa mencetak token, dan response HTTP ke klien **tetap `200 OK`**.
+
+---
+
+### 15.4. Stream Owner Invitation Media Content (Preview Partner)
+
+- **Method**: `GET`
+- **Path**: `/api/v1/invitations/:id/media/:media_id/content`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("partner")`)
+- **Otorisasi**: Hanya partner pemilik undangan (tidak di-gate masa aktif add-on `google-drive-connect`).
+- **Resolusi Working Version**: Mengambil media dari *working version* undangan (versi `'draft'` terbaru; bila tidak ada, fallback ke `published_version_id`; bila masih tidak ada, fallback ke versi `'published'` terbaru) dalam 1 query SQL.
+
+#### Path & Request Headers
+
+| Parameter / Header | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `:id` | integer (path) | Ya | ID undangan (`> 0`). |
+| `:media_id` | integer (path) | Ya | ID media (`invitation_media.id > 0`). |
+| `Range` | string (header) | Tidak | Dukungan *partial content* sesuai RFC 9110: `bytes=start-end`, `bytes=start-`, atau `bytes=-suffix`. Multi-range (mengandung koma) diabaikan dan dilayani penuh dengan `200 OK`. |
+
+#### Response Sukses (`200 OK` / `206 Partial Content`)
+
+- **Body**: Stream biner file langsung dari Google Drive (`io.Copy`, tanpa membaca seluruh file ke memori server).
+- **Response Headers**:
+  - `Content-Type`: Diambil dari `storage_files.mime_type` dengan whitelist (`image/jpeg`, `image/png`, `audio/mpeg`; selain itu `application/octet-stream`), **bukan** dari header Google Drive.
+  - `X-Content-Type-Options: nosniff`
+  - `Accept-Ranges: bytes`
+  - `Content-Disposition: inline; filename="..."` (nama file disanitasi dan diformat dengan `mime.FormatMediaType` agar karakter non-ASCII aman).
+  - `Cache-Control: private, no-store`
+  - `Content-Length`: Ukuran byte stream yang dikirim (bila tersedia).
+  - `Content-Range`: `bytes start-end/total` (khusus pada `206 Partial Content`).
+
+#### Tabel Kegagalan (Error Responses)
+
+| HTTP Status | `errors` Key | Nilai Kode Error (`errors.<key>`) | Penyebab |
+| :--- | :--- | :--- | :--- |
+| `400 Bad Request` | `id` | `"invalid_invitation_id"` | Path parameter `:id` bukan integer positif (`<= 0` atau bukan angka). |
+| `400 Bad Request` | `media_id` | `"invalid_media_id"` | Path parameter `:media_id` bukan integer positif (`<= 0` atau bukan angka). |
+| `401 Unauthorized` | - | - | Token JWT tidak disertakan atau tidak valid. |
+| `403 Forbidden` | - | - | Role pengguna bukan `partner`. |
+| `404 Not Found` | - | - | Undangan tidak ditemukan atau milik partner lain (`"message": "Invitation not found"`), atau media tidak ditemukan / bukan milik working version / sudah di-*soft-delete* / tidak ada di Google Drive (`"message": "Media not found"`). |
+| `409 Conflict` | `drive` | `"drive_not_connected"` | Partner belum menghubungkan akun Google Drive. |
+| `409 Conflict` | `drive` | `"drive_revoked"` | Kredensial Google Drive berstatus `'revoked'` di database, atau Google mengembalikan `invalid_grant` saat pertukaran token (status di DB otomatis diperbarui menjadi `'revoked'`). |
+| `416 Range Not Satisfiable` | - | - | Header `Range` memiliki format tidak valid atau `start >= size` (disertai header `Content-Range: bytes */<size>`). |
+| `500 Internal Server Error` | - | - | Kegagalan komunikasi dengan Google Drive API (`"message": "Could not retrieve media"`) atau kesalahan database internal sebelum streaming dimulai. |
+
+---
+
+### 15.5. Stream Public Invitation Media (Tamu Publik)
+
+- **Method**: `GET`
+- **Path**: `/api/v1/public/invitations/:slug/media/:media_id`
+- **Autentikasi**: Publik (tanpa login).
+- **Otorisasi & Isolasi Versi**: Hanya melayani media yang terikat pada versi yang sedang dipublikasikan (`invitations.published_version_id = invitation_versions.id` dengan `invitations.status = 'published'`, `invitation_versions.status = 'published'`, dan `invitations.expired_at IS NULL OR invitations.expired_at > CURRENT_TIMESTAMP`) serta `storage_files.deleted_at IS NULL`. Media dari versi `'draft'` tidak pernah terekspos ke rute publik.
+
+#### Path & Request Headers
+
+| Parameter / Header | Tipe | Wajib | Keterangan |
+| :--- | :--- | :--- | :--- |
+| `:slug` | string (path) | Ya | Slug unik undangan yang telah dipublikasikan (`1..255` karakter). |
+| `:media_id` | integer (path) | Ya | ID media (`invitation_media.id > 0`). |
+| `If-None-Match` | string (header) | Tidak | Validasi cache terhadap `ETag`. Bila cocok dan request tidak membawa header `Range`, server membalas `304 Not Modified` tanpa memanggil Google Drive API. |
+| `Range` | string (header) | Tidak | Single byte-range (`bytes=start-end`, `bytes=start-`, `bytes=-suffix`) diteruskan ke Google Drive (`206 Partial Content`). Multi-range diabaikan dan dilayani penuh (`200 OK`). |
+
+#### Response Sukses (`200 OK` / `206 Partial Content` / `304 Not Modified`)
+
+- **Body**: Stream biner file langsung dari Google Drive (`200`/`206`), atau kosong (`304`).
+- **Response Headers**:
+  - `Content-Type`: Whitelist dari `storage_files.mime_type` (`image/jpeg`, `image/png`, `audio/mpeg`; selain itu `application/octet-stream`).
+  - `X-Content-Type-Options: nosniff`
+  - `Accept-Ranges: bytes`
+  - `Content-Disposition: inline; filename="..."` (via `mime.FormatMediaType`).
+  - `Cache-Control: public, max-age=300` (5 menit).
+  - `ETag`: `"m-<media_id>-<storage_file_id>-<size>-<updated_at_nano>"` (deterministik tanpa mengekspos `file_id` Google Drive).
+  - `Content-Length` & `Content-Range` (untuk `206 Partial Content`).
+
+#### Tabel Kegagalan (Error Responses)
+
+| HTTP Status | Body / Pesan | Header Tambahan | Penyebab |
+| :--- | :--- | :--- | :--- |
+| `404 Not Found` (Seragam) | `{"success": false, "message": "Media not found"}` | `Cache-Control: no-store` | `:slug` atau `:media_id` tidak valid, undangan tidak ditemukan, berstatus `'draft'`, sudah `'expired'`, media milik undangan lain, media dari versi `'draft'`, media sudah *soft-deleted*, kredensial Google Drive partner tidak ada / `'revoked'` / `invalid_grant`, atau file tidak ditemukan di Google Drive (`404`). |
+| `416 Range Not Satisfiable` | `{"success": false, "message": "Requested range not satisfiable"}` | `Cache-Control: no-store`, `Content-Range: bytes */<size>` | Format header `Range` rusak atau `start >= size`. |
+| `500 Internal Server Error` | `{"success": false, "message": "Could not retrieve media"}` | `Cache-Control: no-store` | Kegagalan komunikasi dengan Google Drive API (5xx/timeout) atau kesalahan database sebelum header stream dikirim. |
+
+#### Catatan Arsitektur, Keamanan, & Operasional Streaming
+1. **HTTP Client Khusus Streaming (Tanpa Total Timeout)**:
+   - Pemanggilan `GoogleStorage.OpenFile` menggunakan client HTTP streaming yang tidak membatasi total waktu pembacaan body (`http.Client.Timeout = 0`), melainkan membatasi waktu tunggu header (`ResponseHeaderTimeout = 15s`) dan mengikat siklus hidup stream pada context request klien. Hal ini mencegah terputusnya pemutaran audio/video berukuran besar pada koneksi tamu yang lambat.
+2. **Kerahasiaan ID Drive & Pencegahan Open Proxy**:
+   - Klien hanya mengirimkan integer `:media_id`. `storage_files.file_id` (ID Google Drive) hanya diambil dari hasil join database dan tidak pernah disertakan pada header (`ETag`, `Content-Disposition`) maupun body error.
+3. **CORS & Rate Limiting**:
+   - Apabila frontend memanggil endpoint streaming lintas origin (misalnya melalui elemen `<audio>`/`<img>` dengan `crossorigin` atau `fetch` dengan header `Range`), reverse proxy / CORS perlu mengizinkan header request `Range` dan `If-None-Match` serta mengekspos header response `Accept-Ranges`, `Content-Range`, `Content-Length`, dan `ETag`.
+   - Endpoint publik ini belum memiliki middleware rate limiter di aplikasi Go; pembatasan laju (*rate limiting*) terhadap scraping/penyalahgunaan bandwidth sebaiknya diterapkan di level reverse proxy / API Gateway / CDN (bersama pemanfaatan `Cache-Control: public, max-age=300` dan `ETag`).
+
 
 
 

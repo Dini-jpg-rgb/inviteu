@@ -125,6 +125,16 @@ func MountDriveRoutes(
 			middleware.RequireRole("partner"),
 			DeleteInvitationMedia(pool, cfg),
 		)
+		api.GET(
+			"/invitations/:id/media/:media_id/content",
+			middleware.AuthRequired(pool, cfg.JWTSecret),
+			middleware.RequireRole("partner"),
+			StreamOwnerInvitationMedia(pool, cfg),
+		)
+		api.GET(
+			"/public/invitations/:slug/media/:media_id",
+			StreamPublicInvitationMedia(pool, cfg),
+		)
 	}
 }
 

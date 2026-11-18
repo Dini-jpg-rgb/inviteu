@@ -1,9 +1,14 @@
 package drive
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 
 	"golang.org/x/oauth2"
@@ -116,6 +121,12 @@ type FakeUploadedFileRecord struct {
 	FileID       string
 }
 
+type FakeOpenedFileRecord struct {
+	RefreshToken string
+	FileID       string
+	RangeHeader  string
+}
+
 // FakeStorage is an in-memory, network-free implementation of Storage for unit and integration tests.
 type FakeStorage struct {
 	mu sync.Mutex
@@ -132,9 +143,15 @@ type FakeStorage struct {
 
 	DeleteErr error
 
+	FileContents       map[string][]byte
+	DefaultFileContent []byte
+	OpenErr            error
+	OpenHook           func(ctx context.Context, fileID string, rangeHeader string)
+
 	CreatedFolders []FakeCreatedFolderRecord
 	UploadedFiles  []FakeUploadedFileRecord
 	DeletedFileIDs []string
+	OpenedFiles    []FakeOpenedFileRecord
 
 	folderSeq int
 	uploadSeq int
@@ -219,6 +236,12 @@ func (f *FakeStorage) UploadFile(
 		FileID:       fileID,
 	}
 	f.UploadedFiles = append(f.UploadedFiles, rec)
+	if f.FileContents == nil {
+		f.FileContents = make(map[string][]byte)
+	}
+	copied := make([]byte, len(params.Content))
+	copy(copied, params.Content)
+	f.FileContents[fileID] = copied
 	f.mu.Unlock()
 
 	if hook != nil {
@@ -243,6 +266,135 @@ func (f *FakeStorage) DeleteFile(
 
 	f.DeletedFileIDs = append(f.DeletedFileIDs, fileID)
 	return f.DeleteErr
+}
+
+func (f *FakeStorage) SetFileContent(fileID string, content []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.FileContents == nil {
+		f.FileContents = make(map[string][]byte)
+	}
+	copied := make([]byte, len(content))
+	copy(copied, content)
+	f.FileContents[fileID] = copied
+}
+
+func (f *FakeStorage) OpenFile(
+	ctx context.Context,
+	refreshToken string,
+	fileID string,
+	rangeHeader string,
+) (*DownloadFileStream, error) {
+	f.mu.Lock()
+	hook := f.OpenHook
+	openErr := f.OpenErr
+	f.OpenedFiles = append(f.OpenedFiles, FakeOpenedFileRecord{
+		RefreshToken: refreshToken,
+		FileID:       fileID,
+		RangeHeader:  rangeHeader,
+	})
+
+	var (
+		content []byte
+		found   bool
+	)
+	if f.FileContents != nil {
+		if b, ok := f.FileContents[fileID]; ok {
+			content = make([]byte, len(b))
+			copy(content, b)
+			found = true
+		}
+	}
+	if !found && f.DefaultFileContent != nil {
+		content = make([]byte, len(f.DefaultFileContent))
+		copy(content, f.DefaultFileContent)
+		found = true
+	}
+	f.mu.Unlock()
+
+	if hook != nil {
+		hook(ctx, fileID, rangeHeader)
+	}
+
+	if openErr != nil {
+		return nil, openErr
+	}
+	if !found {
+		return nil, ErrFileNotFound
+	}
+
+	trimmedRange := strings.TrimSpace(rangeHeader)
+	if trimmedRange == "" {
+		return &DownloadFileStream{
+			StatusCode:    http.StatusOK,
+			Body:          io.NopCloser(bytes.NewReader(content)),
+			ContentLength: int64(len(content)),
+		}, nil
+	}
+
+	totalSize := int64(len(content))
+	if totalSize == 0 || !strings.HasPrefix(trimmedRange, "bytes=") {
+		return nil, ErrRangeNotSatisfiable
+	}
+	spec := strings.TrimSpace(strings.TrimPrefix(trimmedRange, "bytes="))
+	if spec == "" || strings.Contains(spec, ",") {
+		return nil, ErrRangeNotSatisfiable
+	}
+	parts := strings.Split(spec, "-")
+	if len(parts) != 2 {
+		return nil, ErrRangeNotSatisfiable
+	}
+
+	var start, end int64
+	if parts[0] == "" {
+		// Suffix range: bytes=-suffix
+		suffixLen, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || suffixLen <= 0 {
+			return nil, ErrRangeNotSatisfiable
+		}
+		if suffixLen >= totalSize {
+			start = 0
+		} else {
+			start = totalSize - suffixLen
+		}
+		end = totalSize - 1
+	} else {
+		parsedStart, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || parsedStart < 0 || parsedStart >= totalSize {
+			return nil, ErrRangeNotSatisfiable
+		}
+		start = parsedStart
+		if parts[1] == "" {
+			end = totalSize - 1
+		} else {
+			parsedEnd, err := strconv.ParseInt(parts[1], 10, 64)
+			if err != nil || parsedEnd < start {
+				return nil, ErrRangeNotSatisfiable
+			}
+			if parsedEnd >= totalSize {
+				parsedEnd = totalSize - 1
+			}
+			end = parsedEnd
+		}
+	}
+
+	chunk := content[start : end+1]
+	return &DownloadFileStream{
+		StatusCode:    http.StatusPartialContent,
+		Body:          io.NopCloser(bytes.NewReader(chunk)),
+		ContentLength: int64(len(chunk)),
+		ContentRange:  fmt.Sprintf("bytes %d-%d/%d", start, end, totalSize),
+	}, nil
+}
+
+func (f *FakeStorage) OpenedFilesSnapshot() []FakeOpenedFileRecord {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	out := make([]FakeOpenedFileRecord, len(f.OpenedFiles))
+	copy(out, f.OpenedFiles)
+	return out
 }
 
 func (f *FakeStorage) CreatedFoldersSnapshot() []FakeCreatedFolderRecord {
