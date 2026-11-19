@@ -20,6 +20,10 @@ import {
   createDefaultPenutupSection,
   createEmptyBuilderDocument,
 } from "@/components/builder/model";
+import {
+  InviteUTemplateJSON,
+  deserializeFromTemplateJSON,
+} from "@/lib/template-json";
 import { weddingTheme } from "./templates/themes/wedding";
 
 export interface LocalDesignerTemplate {
@@ -32,6 +36,9 @@ export interface LocalDesignerTemplate {
   style: string;
   themeCategory: string;
   status: string;
+  packageTier?: string;
+  themeId?: string;
+  themeConfig?: Record<string, unknown>;
   rejection_note: string | null;
   primaryColor: string;
   secondaryColor: string;
@@ -58,13 +65,19 @@ interface DesignerTemplatesContextValue {
       secondaryColor: string;
       description: string;
       category_name: string;
+      packageTier?: string;
+      status?: string;
+      themeId?: string;
+      themeConfig?: Record<string, unknown>;
     }
   ) => void;
   createTemplate: (template: NewLocalTemplateInput) => number;
   duplicateTemplate: (id: number) => number | undefined;
+  renameTemplate: (id: number, newName: string) => void;
   createRevision: (id: number) => number | undefined;
   submitForReview: (id: number) => void;
   deleteTemplate: (id: number) => void;
+  importTemplate: (templateJSON: InviteUTemplateJSON) => number;
 }
 
 export interface NewLocalTemplateInput {
@@ -75,6 +88,9 @@ export interface NewLocalTemplateInput {
   primaryColor: string;
   secondaryColor: string;
   thumbnail: string;
+  packageTier?: string;
+  themeId?: string;
+  canvasType?: "default" | "blank";
 }
 
 type LocalTemplateUpdateInput = TemplateDataInput &
@@ -220,6 +236,9 @@ function createDemoTemplate(
     style: "Botanical",
     themeCategory: "Wedding Luxury / Botanical",
     status,
+    packageTier: "pro",
+    themeId: "theme-wedding-botanical",
+    themeConfig: {},
     rejection_note: rejectionNote,
     primaryColor: "#6f7f5f",
     secondaryColor: "#455633",
@@ -340,6 +359,10 @@ export function DesignerTemplatesProvider({
         secondaryColor: string;
         description: string;
         category_name: string;
+        packageTier?: string;
+        status?: string;
+        themeId?: string;
+        themeConfig?: Record<string, unknown>;
       }
     ) => {
       setTemplates((current) =>
@@ -355,12 +378,16 @@ export function DesignerTemplatesProvider({
                 style: metadata.themeCategory,
                 primaryColor: metadata.primaryColor,
                 secondaryColor: metadata.secondaryColor,
+                packageTier: metadata.packageTier ?? template.packageTier ?? "basic",
+                themeId: metadata.themeId ?? template.themeId,
+                themeConfig: metadata.themeConfig ?? template.themeConfig,
                 builderDocument: document,
                 updated_at: new Date().toISOString(),
                 status:
-                  template.status.toLowerCase() === "rejected"
+                  metadata.status ??
+                  (template.status.toLowerCase() === "rejected"
                     ? "draft"
-                    : template.status,
+                    : template.status),
                 rejection_note:
                   template.status.toLowerCase() === "rejected"
                     ? null
@@ -499,17 +526,20 @@ export function DesignerTemplatesProvider({
       const template: LocalDesignerTemplate = {
         id,
         designer_id: 1,
-        name: input.name.trim(),
-        description: input.description.trim(),
+        name: (input.name || "").trim(),
+        description: (input.description || "").trim(),
         slug,
-        category_name: input.category,
-        style: input.style,
-        themeCategory: input.style,
+        category_name: input.category || "Wedding",
+        style: input.style || "Botanical",
+        themeCategory: input.style || "Botanical",
+        packageTier: input.packageTier || "basic",
+        themeId: input.themeId || "theme-wedding-botanical",
+        themeConfig: {},
         status: "draft",
         rejection_note: null,
-        primaryColor: input.primaryColor,
-        secondaryColor: input.secondaryColor,
-        thumbnail: input.thumbnail.trim(),
+        primaryColor: input.primaryColor || "#6f7f5f",
+        secondaryColor: input.secondaryColor || "#455633",
+        thumbnail: (input.thumbnail || "/templates/wedding/couple-main.jpg").trim(),
         version: "1.0",
         created_at: timestamp,
         updated_at: timestamp,
@@ -663,6 +693,56 @@ export function DesignerTemplatesProvider({
     );
   }, []);
 
+  const renameTemplate = useCallback((id: number, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setTemplates((current) =>
+      current.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              name: trimmed,
+              updated_at: new Date().toISOString(),
+            }
+          : t
+      )
+    );
+  }, []);
+
+  const importTemplate = useCallback((templateJSON: InviteUTemplateJSON): number => {
+    const id = nextId.current++;
+    const timestamp = new Date().toISOString();
+    const deserialized = deserializeFromTemplateJSON(templateJSON);
+    const meta = templateJSON.metadata;
+
+    const imported: LocalDesignerTemplate = {
+      id,
+      designer_id: 1,
+      name: meta.name ? `${meta.name} (Imported)` : `Template Impor #${id}`,
+      description: meta.description || "Template hasil impor file JSON.",
+      slug: `${(meta.slug || "template-import").replace(/[^a-z0-9]+/g, "-")}-${id}`,
+      category_name: meta.category || "Wedding",
+      style: templateJSON.theme?.themeId || "Botanical",
+      themeCategory: templateJSON.theme?.themeId || "Botanical",
+      status: "draft",
+      packageTier: meta.packageTier || "basic",
+      themeId: templateJSON.theme?.themeId || "theme-wedding-botanical",
+      themeConfig: (templateJSON.theme?.themeConfig as Record<string, unknown>) || {},
+      rejection_note: null,
+      primaryColor: templateJSON.designTokens?.colors?.primary || "#6f7f5f",
+      secondaryColor: templateJSON.designTokens?.colors?.secondary || "#455633",
+      thumbnail: "/templates/wedding/couple-main.jpg",
+      version: "1.0",
+      created_at: timestamp,
+      updated_at: timestamp,
+      sections: [],
+      builderDocument: deserialized.document,
+    };
+
+    setTemplates((current) => [imported, ...current]);
+    return id;
+  }, []);
+
   const value = useMemo(
     () => ({
       templates,
@@ -671,9 +751,11 @@ export function DesignerTemplatesProvider({
       saveBuilderDraft,
       createTemplate,
       duplicateTemplate,
+      renameTemplate,
       createRevision,
       submitForReview,
       deleteTemplate,
+      importTemplate,
     }),
     [
       templates,
@@ -682,9 +764,11 @@ export function DesignerTemplatesProvider({
       saveBuilderDraft,
       createTemplate,
       duplicateTemplate,
+      renameTemplate,
       createRevision,
       submitForReview,
       deleteTemplate,
+      importTemplate,
     ]
   );
 

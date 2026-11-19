@@ -2,8 +2,9 @@
 
 import React from "react";
 import {
+  AppstoreOutlined,
   CloudUploadOutlined,
-  FileAddOutlined,
+  ContainerOutlined,
   OrderedListOutlined,
 } from "@ant-design/icons";
 import { Tabs, Tooltip } from "antd";
@@ -27,8 +28,8 @@ interface BuilderSidebarProps {
   isReadOnly: boolean;
   onSelect: (id: string) => void;
   onAddSection: () => void;
-  onAddElement: (type: ElementType) => void;
-  onAddWidget: (type: WidgetType) => void;
+  onAddElement: (type: ElementType, sectionId?: string, parentContainerId?: string) => void;
+  onAddWidget: (type: WidgetType, sectionId?: string, parentContainerId?: string) => void;
   onUploadAsset: (asset: BuilderAsset) => void;
   onUseAsset: (asset: BuilderAsset) => void;
   onRenameAsset: (assetId: string, name: string) => void;
@@ -45,9 +46,12 @@ interface BuilderSidebarProps {
   onDuplicateToSection?: (id: string, sectionId: string) => void;
   onGroupElements?: (elementIds: string[]) => void;
   onUngroupElements?: (groupId: string) => void;
+  onRemoveFromGroup?: (elementId: string) => void;
+  onAddToGroup?: (elementId: string, groupId: string) => void;
   onMoveGroupToSection?: (groupId: string, sectionId: string) => void;
   onReorderSectionChildren?: (sectionId: string, fromIndex: number, toIndex: number) => void;
   onReorderSections?: (fromIndex: number, toIndex: number) => void;
+  onMoveToContainer?: (elementId: string, containerId?: string) => void;
   onOpenSectionCatalog?: () => void;
   onOpenElementCatalog?: (targetSectionId?: string) => void;
 }
@@ -70,12 +74,36 @@ export function BuilderSidebar(props: BuilderSidebarProps) {
 
   const items: TabsProps["items"] = [
     {
+      key: "elements",
+      label: (
+        <Tooltip title="Elemen Desain (Teks, Media, Tombol, Container)" placement="right">
+          <span>
+            <AppstoreOutlined />
+            Elements
+          </span>
+        </Tooltip>
+      ),
+      children: <AssetPanel {...assetPanelProps} mode="elements" />,
+    },
+    {
+      key: "widgets",
+      label: (
+        <Tooltip title="Widget InviteU (Cover, Event, RSVP, Gallery, Story, dll)" placement="right">
+          <span>
+            <ContainerOutlined />
+            Widgets
+          </span>
+        </Tooltip>
+      ),
+      children: <AssetPanel {...assetPanelProps} mode="widgets" />,
+    },
+    {
       key: "sections_layers",
       label: (
-        <Tooltip title="Kelola Section & Hierarki Layer" placement="right">
+        <Tooltip title="Navigator & Hierarki Layer Section" placement="right">
           <span>
             <OrderedListOutlined />
-            Sections & Layers
+            Navigator
           </span>
         </Tooltip>
       ),
@@ -94,25 +122,16 @@ export function BuilderSidebar(props: BuilderSidebarProps) {
           onMoveToSection={props.onMoveToSection}
           onGroupElements={props.onGroupElements}
           onUngroupElements={props.onUngroupElements}
+          onRemoveFromGroup={props.onRemoveFromGroup}
+          onAddToGroup={props.onAddToGroup}
           onMoveGroupToSection={props.onMoveGroupToSection}
           onReorderSectionChildren={props.onReorderSectionChildren}
           onReorderSections={props.onReorderSections}
+          onMoveToContainer={props.onMoveToContainer}
           onOpenSectionCatalog={props.onOpenSectionCatalog}
           onOpenElementCatalog={props.onOpenElementCatalog}
         />
       ),
-    },
-    {
-      key: "add_elements",
-      label: (
-        <Tooltip title="Tambah elemen & widget ke section" placement="right">
-          <span>
-            <FileAddOutlined />
-            Elemen
-          </span>
-        </Tooltip>
-      ),
-      children: <AssetPanel {...assetPanelProps} mode="add" />,
     },
     {
       key: "uploads",
@@ -120,7 +139,7 @@ export function BuilderSidebar(props: BuilderSidebarProps) {
         <Tooltip title="Pustaka media & font yang diunggah" placement="right">
           <span>
             <CloudUploadOutlined />
-            Aset
+            Assets
           </span>
         </Tooltip>
       ),
@@ -133,7 +152,7 @@ export function BuilderSidebar(props: BuilderSidebarProps) {
       className={`${styles.sidebar} flex h-full min-h-0 min-w-0 w-full shrink-0 flex-col overflow-hidden bg-white`}
     >
       <Tabs
-        defaultActiveKey="sections_layers"
+        defaultActiveKey="sections_layers" /* defaultActiveKey="elements" */
         className={styles.tabs}
         items={items}
       />

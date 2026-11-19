@@ -24,6 +24,7 @@ export interface BuilderCanvasProps {
   presentationOnly?: boolean;
   fitToViewport?: boolean;
   previewMode?: boolean;
+  canvasBackground?: string;
   onPositionChange: (
     id: string,
     position: { x: number; y: number }
@@ -32,13 +33,35 @@ export interface BuilderCanvasProps {
     id: string,
     size: { width: number; height: number }
   ) => void;
-  onDirectTextChange?: (id: string, text: string) => void;
+  onDirectTextChange?: (id: string, text: string, fieldKey?: string) => void;
+  onCopyStyle?: (id: string) => void;
+  onPasteStyle?: (id: string) => void;
+  hasCopiedStyle?: boolean;
+  onDuplicate?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onToggleLock?: (id: string) => void;
+  onMoveLayer?: (id: string, direction: -1 | 1) => void;
+  onDropFromPanel?: (sectionId: string, action: string, containerId?: string) => void;
+  customWidth?: number;
+  cssVariables?: Record<string, string>;
 }
 
 const deviceWidths: Record<BuilderDevice, number> = {
   mobile: 390,
   tablet: 768,
-  desktop: 1120,
+  desktop: 1440,
+};
+
+const deviceLabels: Record<BuilderDevice, string> = {
+  desktop: "Desktop · 1440 px (Baseline)",
+  tablet: "Tablet · 768 px",
+  mobile: "Mobile · 390 px",
+};
+
+const deviceHints: Record<BuilderDevice, string> = {
+  desktop: "Base layout · Single source of design for all devices",
+  tablet: "Tablet preview · Inherits base & applies automatic layout scaling",
+  mobile: "Mobile preview · Inherits base & applies automatic stacking/scaling",
 };
 
 export function BuilderCanvas({
@@ -52,11 +75,22 @@ export function BuilderCanvas({
   presentationOnly = false,
   fitToViewport = false,
   previewMode = false,
+  canvasBackground,
   onPositionChange,
   onSizeChange,
   onDirectTextChange,
+  onCopyStyle,
+  onPasteStyle,
+  hasCopiedStyle,
+  onDuplicate,
+  onDelete,
+  onToggleLock,
+  onMoveLayer,
+  onDropFromPanel,
+  customWidth,
+  cssVariables,
 }: BuilderCanvasProps) {
-  const width = deviceWidths[device];
+  const width = customWidth || deviceWidths[device] || 390;
   const viewportRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(width);
   const scale = fitToViewport
@@ -88,6 +122,10 @@ export function BuilderCanvas({
     return () => observer.disconnect();
   }, [fitToViewport]);
 
+  const activeLabel = customWidth
+    ? `Viewport Kustom · ${customWidth} px (${device.toUpperCase()})`
+    : deviceLabels[device];
+
   return (
     <div
       className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${
@@ -95,6 +133,20 @@ export function BuilderCanvas({
       }`}
       onClick={() => interactive && onSelect(null)}
     >
+      {/* Device viewport banner */}
+      {!presentationOnly && (
+        <div className="flex shrink-0 items-center justify-center gap-2 border-b border-[#EBD9BE] bg-white/80 py-1.5 backdrop-blur-sm">
+          <Text className="text-[11px] text-[#9A5A00] font-medium">
+            {activeLabel}
+          </Text>
+          <Text className="text-[10px] text-[#b08060]">
+            · {Math.round(zoom)}%
+          </Text>
+          <Text className="text-[10px] text-[#9aa1ad]">
+            · {deviceHints[device]}
+          </Text>
+        </div>
+      )}
       <div
         ref={viewportRef}
         className={`min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain ${
@@ -109,10 +161,14 @@ export function BuilderCanvas({
           }}
         >
           <div
-            className={`absolute left-0 top-0 origin-top-left ${
+            className={`absolute left-0 top-0 origin-top-left overflow-x-hidden ${
               presentationOnly
                 ? "bg-white"
-                : "bg-white shadow-[0_4px_18px_rgba(58,35,19,0.10)]"
+                : device === "mobile"
+                  ? "bg-white shadow-[0_4px_18px_rgba(58,35,19,0.10)] outline outline-2 outline-[#FCB040]/30 rounded-sm"
+                  : device === "tablet"
+                    ? "bg-white shadow-[0_4px_18px_rgba(58,35,19,0.10)] outline outline-2 outline-[#1677ff]/20 rounded-sm"
+                    : "bg-white shadow-[0_4px_18px_rgba(58,35,19,0.10)] outline outline-2 outline-[#52c41a]/20 rounded-sm"
             }`}
             style={{
               width,
@@ -122,7 +178,11 @@ export function BuilderCanvas({
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              className="flex h-full flex-col bg-white"
+              className="flex h-full flex-col overflow-x-hidden"
+              style={{
+                backgroundColor: canvasBackground || "#ffffff",
+                ...cssVariables,
+              }}
               onClick={() => interactive && onSelect(null)}
             >
               {document.sections.length ? (
@@ -143,19 +203,27 @@ export function BuilderCanvas({
                     onDirectTextChange={
                       interactive ? onDirectTextChange : undefined
                     }
+                    onCopyStyle={interactive ? onCopyStyle : undefined}
+                    onPasteStyle={interactive ? onPasteStyle : undefined}
+                    hasCopiedStyle={hasCopiedStyle}
+                    onDuplicate={interactive ? onDuplicate : undefined}
+                    onDelete={interactive ? onDelete : undefined}
+                    onToggleLock={interactive ? onToggleLock : undefined}
+                    onMoveLayer={interactive ? onMoveLayer : undefined}
+                    onDropFromPanel={interactive ? onDropFromPanel : undefined}
                   />
                 ))
               ) : presentationOnly ? null : (
-                <div className="flex min-h-[360px] flex-1 items-center justify-center">
+                <div className="flex min-h-[360px] flex-1 items-center justify-center p-6 text-center">
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
-                      <div className="space-y-1">
-                        <Text strong className="block">
-                          Canvas is empty
+                      <div className="space-y-1.5 max-w-xs">
+                        <Text strong className="block text-sm text-[#3A2313]">
+                          Canvas masih kosong
                         </Text>
-                        <Text type="secondary" className="text-xs">
-                          Add a section or object from Assets to start designing.
+                        <Text type="secondary" className="text-xs text-[#765D48] leading-relaxed">
+                          Tambahkan section Cover wajib atau pilih template dari panel kiri (Elements / Widgets) untuk mulai menyusun undangan.
                         </Text>
                       </div>
                     }

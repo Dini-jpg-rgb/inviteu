@@ -4,11 +4,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import {
   DeleteOutlined,
-  ArrowLeftOutlined,
-  SaveOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  CopyOutlined,
+  DownloadOutlined,
+  CodeOutlined,
 } from "@ant-design/icons";
 import {
   App as AntdApp,
@@ -16,16 +17,24 @@ import {
   Button,
   Drawer,
   Modal,
-  Select,
   Space,
-  Tag,
 } from "antd";
 import { BuilderToolbar, AutosaveState } from "./BuilderToolbar";
 import { BuilderSidebar } from "./BuilderSidebar";
 import { BuilderCanvas } from "./BuilderCanvas";
 import { BuilderProperties, BuilderMetadata } from "./BuilderProperties";
+import { PreviewRenderer } from "./PreviewRenderer";
+import { AssetPickerModal } from "./AssetPickerModal";
+import { RevisionHistoryModal } from "./RevisionHistoryModal";
+import { ImportJSONModal } from "./ImportJSONModal";
+import { ExternalDesignImportModal } from "./ExternalDesignImportModal";
+import { resolveTheme } from "@/lib/theme-resolver";
 import { SectionCatalogModal, CatalogSectionTemplate } from "./SectionCatalogModal";
 import { ElementCatalogModal, ElementCatalogItem } from "./ElementCatalogModal";
+import {
+  exportTemplatePackage,
+  downloadTemplateJSON,
+} from "./adapters/exportHandler";
 import {
   BuilderDevice,
   BuilderDocument,
@@ -37,9 +46,6 @@ import {
   createBuilderId,
   createEmptyBuilderDocument,
   ensureCoverAndPenutup,
-  getResponsivePosition,
-  getResponsiveProps,
-  getResponsiveSize,
 } from "./model";
 import {
   BuilderAsset,
@@ -97,6 +103,7 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     createTemplate,
     saveBuilderDraft,
     submitForReview,
+    createRevision,
   } = useDesignerTemplates();
   const savedTemplate =
     mode === "edit" && initialData?.id
@@ -127,14 +134,17 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     moveObject,
     moveObjectToSection,
     toggleLock,
-    toggleVisibility,
+    updatePosition,
     groupElements,
     ungroupElements,
+    addToGroup,
+    removeFromGroup,
     moveGroupToSection,
     reorderSectionChildren,
     reorderSections,
     undo,
     redo,
+    resetHistory,
   } = useBuilderDocument(initialDocument);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -145,17 +155,33 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
   const [rejectionNote, setRejectionNote] = useState(
     savedTemplate?.rejection_note ?? null
   );
-  const [device, setDevice] = useState<BuilderDevice>("mobile");
+  const [device, setDevice] = useState<BuilderDevice>("desktop");
+  const [customViewportWidth, setCustomViewportWidth] = useState<number | undefined>(1440);
+  const [isAssetPickerOpen, setIsAssetPickerOpen] = useState(false);
+  const [assetPickerTarget, setAssetPickerTarget] = useState<{
+    nodeId: string;
+    field: string;
+    currentUrl?: string;
+    title?: string;
+  } | null>(null);
   const [zoom, setZoom] = useState(80);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [previewGuestMode, setPreviewGuestMode] = useState<"standard" | "full_guest">("standard");
   const [isAssetsOpen, setIsAssetsOpen] = useState(false);
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isSectionCatalogOpen, setIsSectionCatalogOpen] = useState(false);
   const [isElementCatalogOpen, setIsElementCatalogOpen] = useState(false);
   const [elementCatalogTargetSectionId, setElementCatalogTargetSectionId] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isRevisionHistoryOpen, setIsRevisionHistoryOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
+  const [lastSavedTime, setLastSavedTime] = useState<string>(() =>
+    new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+  );
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveState>("saved");
-  const [isOnline, setIsOnline] = useState(true);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isPropertiesCollapsed, setIsPropertiesCollapsed] = useState(false);
   const [assets, setAssets] = useState<BuilderAsset[]>(getLocalBuilderAssets);
@@ -170,7 +196,7 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     themeCategory:
       savedTemplate?.themeCategory ??
       initialData?.themeCategory ??
-      "Classic",
+      "Botanical Sage",
     primaryColor:
       savedTemplate?.primaryColor ??
       initialData?.primaryColor ??
@@ -179,6 +205,19 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       savedTemplate?.secondaryColor ??
       initialData?.secondaryColor ??
       "#455633",
+    canvasBackground: "#ffffff",
+    defaultFontFamily: "Georgia, serif",
+    packageTier:
+      (savedTemplate as unknown as { packageTier?: string })?.packageTier ??
+      "basic",
+    status: savedTemplate?.status ?? "draft",
+    themeId:
+      (savedTemplate as unknown as { themeId?: string })?.themeId ??
+      "theme-wedding-botanical",
+    themeConfig:
+      (savedTemplate as unknown as {
+        themeConfig?: Record<string, unknown>;
+      })?.themeConfig ?? {},
   };
   const [metadata, setMetadata] = useState<BuilderMetadata>(initialMetadata);
   const fullscreenRef = useRef<HTMLDivElement>(null);
@@ -186,6 +225,15 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     () => findNode(document, selectedId),
     [document, selectedId]
   );
+  const parentSection = useMemo(() => {
+    if (!selectedNode) return null;
+    if (selectedNode.kind === "section") return selectedNode;
+    return (
+      document.sections.find((s) =>
+        s.children.some((child) => child.id === selectedNode.id)
+      ) ?? null
+    );
+  }, [document.sections, selectedNode]);
   const fontOptions = useMemo(
     () =>
       assets
@@ -216,6 +264,34 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
   const isReadOnly = ["in_review", "pending_review", "approved", "archived"].includes(
     normalizedStatus
   );
+
+  const [copiedStyle, setCopiedStyle] = useState<{
+    props: Record<string, BuilderPropertyValue>;
+    size?: { width: number; height: number };
+  } | null>(null);
+
+  const handleCopyStyle = useCallback((id: string) => {
+    const node = findNode(document, id);
+    if (!node) return;
+    setCopiedStyle({
+      props: { ...node.props },
+      size: node.kind !== "section" ? { ...node.size } : undefined,
+    });
+    message.success("Style berhasil disalin.");
+  }, [document, message]);
+
+  const handlePasteStyle = useCallback((id: string) => {
+    if (isReadOnly || !copiedStyle) return;
+    updateObject(id, (node) => ({
+      ...node,
+      props: {
+        ...node.props,
+        ...copiedStyle.props,
+      },
+      ...(copiedStyle.size && node.kind !== "section" ? { size: { ...copiedStyle.size } } : {}),
+    }));
+    message.success("Style berhasil diterapkan.");
+  }, [copiedStyle, isReadOnly, message, updateObject]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -272,31 +348,99 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
   }, [addSection, isReadOnly]);
 
   const handleAddElement = useCallback(
-    (type: ElementType) => {
+    (type: ElementType, targetSectionId?: string, targetContainerId?: string) => {
       if (isReadOnly) return;
       const sectionId =
-        selectedNode?.kind === "section"
+        targetSectionId ||
+        (selectedNode?.kind === "section"
           ? selectedNode.id
-          : findParentId(document, selectedId);
-      const id = addElement(type, sectionId);
-      setSelectedId(id);
-      setIsAssetsOpen(false);
+          : findParentId(document, selectedId));
+      if (!sectionId) {
+        message.warning("Pilih section terlebih dahulu untuk menambahkan elemen.");
+        return;
+      }
+      const containerId =
+        targetContainerId ||
+        (selectedNode?.kind === "element" &&
+        selectedNode.elementType === "container"
+          ? selectedNode.id
+          : undefined);
+      const id = addElement(type, sectionId, containerId);
+      if (id) {
+        setSelectedId(id);
+        setIsAssetsOpen(false);
+      }
     },
-    [addElement, document, isReadOnly, selectedId, selectedNode]
+    [addElement, document, isReadOnly, message, selectedId, selectedNode]
   );
 
   const handleAddWidget = useCallback(
-    (type: WidgetType) => {
+    (type: WidgetType, targetSectionId?: string, targetContainerId?: string) => {
       if (isReadOnly) return;
       const sectionId =
-        selectedNode?.kind === "section"
+        targetSectionId ||
+        (selectedNode?.kind === "section"
           ? selectedNode.id
-          : findParentId(document, selectedId);
-      const id = addWidget(type, sectionId);
-      setSelectedId(id);
-      setIsAssetsOpen(false);
+          : findParentId(document, selectedId));
+      if (!sectionId) {
+        message.warning("Pilih section terlebih dahulu untuk menambahkan widget.");
+        return;
+      }
+      const containerId =
+        targetContainerId ||
+        (selectedNode?.kind === "element" &&
+        selectedNode.elementType === "container"
+          ? selectedNode.id
+          : undefined);
+      const id = addWidget(type, sectionId, containerId);
+      if (id) {
+        setSelectedId(id);
+        setIsAssetsOpen(false);
+      }
     },
-    [addWidget, document, isReadOnly, selectedId, selectedNode]
+    [addWidget, document, isReadOnly, message, selectedId, selectedNode]
+  );
+
+  const handleDropFromPanel = useCallback(
+    (targetSectionId: string, action: string, targetContainerId?: string) => {
+      if (isReadOnly) return;
+      if (action === "section") {
+        const id = addSection();
+        setSelectedId(id);
+      } else if (action === "nested_container") {
+        const id = addElement("container", targetSectionId, targetContainerId);
+        setSelectedId(id);
+        message.success("Nested container ditambahkan");
+      } else if (
+        [
+          "heading",
+          "text",
+          "image",
+          "video",
+          "shape",
+          "button",
+          "divider",
+          "spacer",
+          "icon",
+          "container",
+        ].includes(action)
+      ) {
+        const id = addElement(
+          action as ElementType,
+          targetSectionId,
+          targetContainerId
+        );
+        setSelectedId(id);
+      } else {
+        const id = addWidget(
+          action as WidgetType,
+          targetSectionId,
+          targetContainerId
+        );
+        setSelectedId(id);
+      }
+    },
+    [addElement, addSection, addWidget, isReadOnly, message]
   );
 
   const handleUploadAsset = useCallback((asset: BuilderAsset) => {
@@ -311,33 +455,46 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     (id: string, key: string, value: BuilderPropertyValue) => {
       if (isReadOnly) return;
       updateObject(id, (node) => {
-        const nextProps = {
-          ...node.props,
-          [key]: value,
-        };
-        const ratioMatch =
-          key === "aspectRatio" && typeof value === "string"
-            ? value.match(/^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/)
-            : null;
-        if (!ratioMatch || node.kind === "section") {
-          return { ...node, props: nextProps };
+        // For the base device (desktop), write directly to base props.
+        // For tablet/mobile, write to responsive[device].props as an override.
+        if (device === "desktop") {
+          const nextProps = { ...node.props, [key]: value };
+          const ratioMatch =
+            key === "aspectRatio" && typeof value === "string"
+              ? value.match(/^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/)
+              : null;
+          if (!ratioMatch || node.kind === "section") {
+            return { ...node, props: nextProps };
+          }
+          const ratio = Number(ratioMatch[1]) / Number(ratioMatch[2]);
+          if (!Number.isFinite(ratio) || ratio <= 0) {
+            return { ...node, props: nextProps };
+          }
+          const currentSize = node.size || { width: 100, height: 100 };
+          return {
+            ...node,
+            props: nextProps,
+            size: { ...currentSize, height: Math.round(currentSize.width / ratio) },
+          };
         }
-        const ratio = Number(ratioMatch[1]) / Number(ratioMatch[2]);
-        if (!Number.isFinite(ratio) || ratio <= 0) {
-          return { ...node, props: nextProps };
-        }
-        const currentSize = node.size || { width: 100, height: 100 };
+        // Non-mobile: write to responsive override
+        const currentDeviceOverride = node.responsive?.[device] ?? {};
         return {
           ...node,
-          props: nextProps,
-          size: {
-            ...currentSize,
-            height: Math.round(currentSize.width / ratio),
+          responsive: {
+            ...node.responsive,
+            [device]: {
+              ...currentDeviceOverride,
+              props: {
+                ...(currentDeviceOverride.props ?? {}),
+                [key]: value,
+              },
+            },
           },
         };
       });
     },
-    [isReadOnly, updateObject]
+    [device, isReadOnly, updateObject]
   );
 
   const handleUseAsset = useCallback(
@@ -368,16 +525,21 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
         return;
       }
 
+      const targetSectionId =
+        selectedNode?.kind === "section"
+          ? selectedNode.id
+          : findParentId(document, selectedId);
+      if (!targetSectionId && !(selectedNode?.kind === "element" && selectedNode.elementType === asset.type)) {
+        message.warning("Pilih section terlebih dahulu untuk menambahkan asset.");
+        return;
+      }
+
       const id =
         selectedNode?.kind === "element" &&
         selectedNode.elementType === asset.type
           ? selectedNode.id
-          : addElement(
-              asset.type,
-              selectedNode?.kind === "section"
-                ? selectedNode.id
-                : findParentId(document, selectedId)
-            );
+          : addElement(asset.type, targetSectionId);
+      if (!id) return;
       updateObject(id, (node) => {
         if (node.kind !== "element") return node;
         return {
@@ -397,6 +559,7 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       document,
       handleUpdateProp,
       isReadOnly,
+      message,
       selectedId,
       selectedNode,
       updateObject,
@@ -468,27 +631,55 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
   );
 
   const handleResetProp = useCallback(
-    (_id: string, _key: string) => {},
-    []
+    (id: string, key: string) => {
+      if (isReadOnly) return;
+      // Clear the responsive override for the current device; has no effect for mobile base
+      updateObject(id, (node) => {
+        const currentDeviceOverride = node.responsive?.[device];
+        if (!currentDeviceOverride?.props) return node;
+        const restProps = { ...currentDeviceOverride.props };
+        delete restProps[key];
+        return {
+          ...node,
+          responsive: {
+            ...node.responsive,
+            [device]: {
+              ...currentDeviceOverride,
+              props: restProps,
+            },
+          },
+        };
+      });
+    },
+    [device, isReadOnly, updateObject]
   );
 
   const handleUpdatePosition = useCallback(
     (id: string, position: { x?: number; y?: number }) => {
       if (isReadOnly) return;
-      updateObject(id, (current) => ({
-        ...current,
-        position: {
-          ...current.position,
-          ...position,
-        },
-      }));
+      updatePosition(id, position, device);
     },
-    [isReadOnly, updateObject]
+    [device, isReadOnly, updatePosition]
   );
 
   const handleResetPosition = useCallback(
-    (_id: string, _key: "x" | "y") => {},
-    []
+    (id: string, key: "x" | "y") => {
+      if (isReadOnly) return;
+      updateObject(id, (current) => {
+        const override = current.responsive?.[device];
+        if (!override?.position) return current;
+        const restPos = { ...(override.position as Record<string, number>) };
+        delete restPos[key];
+        return {
+          ...current,
+          responsive: {
+            ...current.responsive,
+            [device]: { ...override, position: restPos },
+          },
+        };
+      });
+    },
+    [device, isReadOnly, updateObject]
   );
 
   const handleUpdateSize = useCallback(
@@ -503,30 +694,135 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
                 /^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/
               )
             : null;
-        const responsiveSize = { ...currentSize, ...size };
+        const nextSize = { ...currentSize, ...size };
         if (ratioMatch && size.width !== undefined && size.height === undefined) {
           const ratio = Number(ratioMatch[1]) / Number(ratioMatch[2]);
           if (Number.isFinite(ratio) && ratio > 0) {
-            responsiveSize.height = Math.round(responsiveSize.width / ratio);
+            nextSize.height = Math.round(nextSize.width / ratio);
+          }
+        }
+        if (device === "desktop") {
+          return { ...current, size: nextSize };
+        }
+        const override = current.responsive?.[device] ?? {};
+        const overrideSize = { ...(override.size ?? {}), ...size };
+        if (ratioMatch && size.width !== undefined && size.height === undefined) {
+          const ratio = Number(ratioMatch[1]) / Number(ratioMatch[2]);
+          if (Number.isFinite(ratio) && ratio > 0) {
+            overrideSize.height = Math.round((overrideSize.width ?? nextSize.width) / ratio);
           }
         }
         return {
           ...current,
-          size: responsiveSize,
+          responsive: {
+            ...current.responsive,
+            [device]: { ...override, size: overrideSize },
+          },
         };
       });
     },
-    [isReadOnly, updateObject]
+    [device, isReadOnly, updateObject]
   );
 
   const handleResetSize = useCallback(
-    (_id: string, _key: "width" | "height") => {},
-    []
+    (id: string, key: "width" | "height") => {
+      if (isReadOnly) return;
+      updateObject(id, (current) => {
+        const override = current.responsive?.[device];
+        if (!override?.size) return current;
+        const restSize = { ...(override.size as Record<string, number>) };
+        delete restSize[key];
+        return {
+          ...current,
+          responsive: {
+            ...current.responsive,
+            [device]: { ...override, size: restSize },
+          },
+        };
+      });
+    },
+    [device, isReadOnly, updateObject]
+  );
+
+  const resolvedTheme = useMemo(
+    () =>
+      resolveTheme(
+        metadata.themeId || metadata.themeCategory,
+        metadata.themeConfig
+      ),
+    [metadata.themeId, metadata.themeCategory, metadata.themeConfig]
+  );
+
+  const handleOpenAssetPicker = useCallback(
+    (field?: string, title?: string) => {
+      if (isReadOnly || !selectedNode) {
+        setIsAssetsOpen(true);
+        return;
+      }
+      const targetField = field || (selectedNode.kind === "element" ? "src" : "backgroundImage");
+      const currentVal =
+        ((selectedNode as unknown as { props?: Record<string, unknown> }).props?.[targetField] as string | undefined) ||
+        ((selectedNode as unknown as { props?: Record<string, unknown> }).props?.backgroundImage as string | undefined);
+      setAssetPickerTarget({
+        nodeId: selectedNode.id,
+        field: targetField,
+        currentUrl: currentVal,
+        title: title || `Pilih Asset untuk ${selectedNode.name || selectedNode.id}`,
+      });
+      setIsAssetPickerOpen(true);
+    },
+    [isReadOnly, selectedNode]
+  );
+
+  const handleSelectAssetForField = useCallback(
+    (asset: BuilderAsset) => {
+      if (!assetPickerTarget) return;
+      const { nodeId, field } = assetPickerTarget;
+      handleUpdateProp(nodeId, field, asset.previewUrl);
+      setIsAssetPickerOpen(false);
+      setAssetPickerTarget(null);
+      message.success(`Asset "${asset.name}" berhasil diterapkan.`);
+    },
+    [assetPickerTarget, handleUpdateProp, message]
   );
 
   const handleSelectCatalogSection = useCallback(
     (catalogItem: CatalogSectionTemplate) => {
       if (isReadOnly) return;
+
+      // Guard Cover / Penutup duplicate
+      if (catalogItem.key === "cover" && document.sections.some((s) => s.id === "section-cover" || s.name.toLowerCase().includes("cover"))) {
+        message.warning("Section Cover sudah ada di posisi awal template.");
+        return;
+      }
+      if (catalogItem.key === "penutup" && document.sections.some((s) => s.id === "section-penutup" || s.name.toLowerCase().includes("penutup"))) {
+        message.warning("Section Penutup sudah ada di posisi akhir template.");
+        return;
+      }
+
+      // Guard singleton widgets in catalog section
+      for (const child of catalogItem.defaultChildren || []) {
+        if (child.kind === "widget" && child.widgetType) {
+          if (
+            child.widgetType === "rsvp" ||
+            child.widgetType === "music" ||
+            child.widgetType === "guestbook"
+          ) {
+            const alreadyExists = document.sections.some((s) =>
+              s.children.some(
+                (c) => c.kind === "widget" && c.widgetType === child.widgetType
+              )
+            );
+            if (alreadyExists) {
+              message.warning(
+                `Widget "${child.name}" sudah ada di template (maksimal 1).`
+              );
+              return;
+            }
+          }
+        }
+      }
+
       const newSectionId = createBuilderId("section");
       const newSection: BuilderSection = {
         id: newSectionId,
@@ -568,7 +864,7 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       setSelectedId(newSectionId);
       message.success(`Section "${catalogItem.name}" berhasil ditambahkan.`);
     },
-    [insertSection, isReadOnly, message]
+    [document.sections, insertSection, isReadOnly, message]
   );
 
   const handleOpenElementCatalog = useCallback(
@@ -636,7 +932,6 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-    setIsOnline(navigator.onLine);
 
     return () => {
       window.removeEventListener("online", handleOnline);
@@ -648,20 +943,19 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
   useEffect(() => {
     if (isReadOnly || !hasUnsavedChanges) return;
 
-    if (!isOnline) {
-      setAutosaveStatus("offline");
-      // Persist temporary snapshot in localStorage while offline
-      try {
-        localStorage.setItem(
-          `offline_builder_draft_${templateId || "temp"}`,
-          JSON.stringify({ document, metadata, timestamp: Date.now() })
-        );
-      } catch {}
-      return;
-    }
-
-    setAutosaveStatus("unsaved");
     const timer = setTimeout(() => {
+      if (!isOnline) {
+        setAutosaveStatus("offline");
+        // Persist temporary snapshot in localStorage while offline
+        try {
+          localStorage.setItem(
+            `offline_builder_draft_${templateId || "temp"}`,
+            JSON.stringify({ document, metadata, timestamp: Date.now() })
+          );
+        } catch {}
+        return;
+      }
+
       setAutosaveStatus("saving");
       try {
         let currentId = templateId;
@@ -691,6 +985,9 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
         saveBuilderDraft(currentId, document, nextMetadata);
         setSavedSnapshot(JSON.stringify({ document, metadata: nextMetadata }));
         setAutosaveStatus("saved");
+        setLastSavedTime(
+          new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+        );
         // Clear offline cache on successful sync
         try {
           localStorage.removeItem(`offline_builder_draft_${currentId}`);
@@ -750,12 +1047,53 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     saveBuilderDraft(id, document, nextMetadata);
     setSavedSnapshot(JSON.stringify({ document, metadata: nextMetadata }));
     setAutosaveStatus("saved");
+    setLastSavedTime(
+      new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+    );
     setStatus(normalizedStatus === "rejected" ? "draft" : status);
     if (normalizedStatus === "rejected") setRejectionNote(null);
     message.success(
       "Draft saved in local browser state only; no data was sent to the backend."
     );
   };
+
+  const handleRestoreRevision = useCallback(
+    (restoredDoc: BuilderDocument, restoredMeta: BuilderMetadata) => {
+      resetHistory(restoredDoc);
+      setMetadata(restoredMeta);
+      setSavedSnapshot(JSON.stringify({ document: restoredDoc, metadata: restoredMeta }));
+      setAutosaveStatus("saved");
+      setLastSavedTime(
+        new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      );
+      setSelectedId(null);
+    },
+    [resetHistory]
+  );
+
+  const handleApplyImportedJSON = useCallback(
+    (importedDoc: BuilderDocument, importedMeta: Partial<BuilderMetadata>) => {
+      resetHistory(importedDoc);
+      const mergedMeta = { ...metadata, ...importedMeta };
+      setMetadata(mergedMeta);
+      setSavedSnapshot(JSON.stringify({ document: importedDoc, metadata: mergedMeta }));
+      setAutosaveStatus("saved");
+      setLastSavedTime(
+        new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+      );
+      setSelectedId(null);
+    },
+    [metadata, resetHistory]
+  );
+
+  const handleCreateRevisionDraft = useCallback(() => {
+    if (!templateId) return;
+    const newRevId = createRevision(templateId);
+    if (newRevId) {
+      message.success("Draft revisi baru berhasil dibuat.");
+      router.push(`/designer/templates/${newRevId}/edit`);
+    }
+  }, [createRevision, message, router, templateId]);
 
   // Submission Validation with Error, Warning, and Passed categorization
   const validateForSubmission = useCallback((): {
@@ -774,6 +1112,18 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       passed.push(`Nama template: "${metadata.name.trim()}"`);
     }
 
+    if (!metadata.packageTier) {
+      errors.push("Package Tier wajib dipilih (Basic, Medium, atau Pro).");
+    } else {
+      passed.push(`Package Tier terpasang: ${metadata.packageTier.toUpperCase()}.`);
+    }
+
+    if (!metadata.themeId && !metadata.themeCategory) {
+      errors.push("Tema template wajib ditentukan.");
+    } else {
+      passed.push(`Tema template terpasang: ${metadata.themeId || metadata.themeCategory}.`);
+    }
+
     if (!metadata.category_name.trim()) {
       warnings.push("Kategori template belum diatur secara spesifik.");
     }
@@ -783,10 +1133,12 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     if (sections.length < 2) {
       errors.push("Template wajib memiliki minimal Section Cover dan Penutup.");
     } else {
-      const hasCover = sections[0].name.toLowerCase().includes("cover");
-      const hasPenutup = sections[sections.length - 1].name
-        .toLowerCase()
-        .includes("penutup");
+      const hasCover = sections[0].name.toLowerCase().includes("cover") || sections[0].id.toLowerCase().includes("cover");
+      const hasPenutup =
+        sections[sections.length - 1].name.toLowerCase().includes("penutup") ||
+        sections[sections.length - 1].name.toLowerCase().includes("closing") ||
+        sections[sections.length - 1].id.toLowerCase().includes("penutup") ||
+        sections[sections.length - 1].id.toLowerCase().includes("closing");
 
       if (!hasCover) {
         errors.push("Section pertama wajib berupa Cover.");
@@ -801,13 +1153,26 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       }
     }
 
-    // 3. Elements and Content Validation
+    // 3. Elements, Content & Widget Validation
     let emptyElementsCount = 0;
     let totalElementsCount = 0;
     let brokenMediaCount = 0;
+    let rsvpCount = 0;
+    let musicCount = 0;
+    let guestbookCount = 0;
+    let hasLiveStreaming = false;
+
+    const seenIds = new Set<string>();
+    let duplicateIdCount = 0;
 
     sections.forEach((sec) => {
+      if (seenIds.has(sec.id)) duplicateIdCount++;
+      else seenIds.add(sec.id);
+
       sec.children.forEach((child) => {
+        if (seenIds.has(child.id)) duplicateIdCount++;
+        else seenIds.add(child.id);
+
         totalElementsCount += 1;
         const props = child.props || {};
 
@@ -822,8 +1187,26 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
             }
           }
         }
+
+        if (child.kind === "widget") {
+          if (child.widgetType === "rsvp") rsvpCount++;
+          if (child.widgetType === "music") musicCount++;
+          if (child.widgetType === "guestbook") guestbookCount++;
+          if ((child.widgetType as string) === "live_streaming") hasLiveStreaming = true;
+        }
       });
     });
+
+    if (duplicateIdCount > 0) {
+      errors.push(`Ditemukan ${duplicateIdCount} ID duplikat. Setiap elemen wajib memiliki ID unik.`);
+    } else {
+      passed.push("Seluruh ID section dan elemen unik.");
+    }
+
+    if (rsvpCount > 1) errors.push(`Widget RSVP hanya boleh maksimal 1 (ditemukan: ${rsvpCount}).`);
+    if (musicCount > 1) errors.push(`Widget Musik hanya boleh maksimal 1 (ditemukan: ${musicCount}).`);
+    if (guestbookCount > 1) errors.push(`Widget Buku Tamu hanya boleh maksimal 1 (ditemukan: ${guestbookCount}).`);
+    if (hasLiveStreaming) errors.push("Widget Live Streaming dilarang sesuai ketentuan produk InviteU.");
 
     if (totalElementsCount === 0) {
       errors.push("Template tidak memiliki elemen konten.");
@@ -846,6 +1229,8 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     } else {
       passed.push("Seluruh elemen media valid.");
     }
+
+    passed.push("Pengaturan responsif (Desktop, Tablet, Mobile) tervalidasi.");
 
     return { errors, warnings, passed };
   }, [document.sections, metadata]);
@@ -996,6 +1381,20 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
     }
   };
 
+  const exportPackage = useMemo(() => {
+    if (!isExportModalOpen) return null;
+    return exportTemplatePackage({
+      document,
+      metadata,
+      packageTier: metadata.packageTier,
+      status: metadata.status || status,
+      themeId: metadata.themeId,
+      themeConfig: metadata.themeConfig,
+      assets,
+      templateId: templateId ?? metadata.slug,
+    });
+  }, [isExportModalOpen, document, metadata, assets, templateId, status]);
+
   if (mode === "edit" && !savedTemplate) {
     return (
       <div className="mx-auto max-w-xl p-8">
@@ -1025,99 +1424,14 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
 
   if (isPreviewOpen) {
     return (
-      <div className={`${styles.preview} fixed inset-0 z-[100] flex flex-col overflow-hidden bg-white`}>
-        {fontFaceCss && <style>{fontFaceCss}</style>}
-        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#e5e7eb] bg-white px-3 py-2 sm:px-5">
-          <Space size={8}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => setIsPreviewOpen(false)}
-            >
-              Kembali ke Editor
-            </Button>
-            <Select
-              value={previewGuestMode}
-              onChange={setPreviewGuestMode}
-              className="!w-[170px]"
-              options={[
-                { value: "standard", label: "Canvas Preview" },
-                { value: "full_guest", label: "Full Guest View" },
-              ]}
-            />
-            <Tag color={hasUnsavedChanges ? "gold" : "green"}>
-              {hasUnsavedChanges ? "Unsaved changes" : "Saved locally"}
-            </Tag>
-          </Space>
-          <Space size={8}>
-            <Select
-              aria-label="Preview device"
-              value={device}
-              onChange={setDevice}
-              className="!w-[128px] sm:!w-[150px]"
-              options={[
-                { value: "mobile", label: "Mobile" },
-                { value: "tablet", label: "Tablet" },
-                { value: "desktop", label: "Desktop" },
-              ]}
-            />
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={handleSave}
-              disabled={isReadOnly}
-            >
-              Save Draft
-            </Button>
-          </Space>
-        </header>
-
-        {previewGuestMode === "full_guest" ? (
-          <div className="flex-1 overflow-y-auto bg-stone-100 p-4">
-            <div
-              className="mx-auto overflow-hidden bg-white shadow-2xl transition-all duration-300 rounded-xl"
-              style={{
-                width: device === "mobile" ? 390 : device === "tablet" ? 768 : 1080,
-                minHeight: "100%",
-              }}
-            >
-              <div className="p-2 border-b border-stone-200 bg-stone-50 text-center text-xs text-stone-500 font-medium">
-                Simulasi Undangan Tamu · {device.toUpperCase()}
-              </div>
-              <BuilderCanvas
-                document={document}
-                selectedId={null}
-                onSelect={() => {}}
-                device={device}
-                zoom={100}
-                title={metadata.name}
-                interactive={true}
-                editable={false}
-                presentationOnly
-                fitToViewport={false}
-                previewMode
-                onPositionChange={() => {}}
-                onSizeChange={() => {}}
-              />
-            </div>
-          </div>
-        ) : (
-          <BuilderCanvas
-            document={document}
-            selectedId={null}
-            onSelect={() => {}}
-            device={device}
-            zoom={100}
-            title={metadata.name}
-            interactive={false}
-            editable={false}
-            presentationOnly
-            fitToViewport
-            previewMode
-            onPositionChange={() => {}}
-            onSizeChange={() => {}}
-          />
-        )}
-      </div>
+      <PreviewRenderer
+        document={document}
+        metadata={metadata}
+        initialDevice={device}
+        onClose={() => setIsPreviewOpen(false)}
+        fontFaceCss={fontFaceCss}
+        hasUnsavedChanges={hasUnsavedChanges}
+      />
     );
   }
 
@@ -1190,6 +1504,18 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
           message.success("Grup elemen berhasil dipisahkan (ungrouped).");
         }
       }}
+      onRemoveFromGroup={(elementId: string) => {
+        if (!isReadOnly) {
+          removeFromGroup(elementId);
+          message.success("Elemen berhasil dikeluarkan dari grup.");
+        }
+      }}
+      onAddToGroup={(elementId: string, groupId: string) => {
+        if (!isReadOnly) {
+          addToGroup(elementId, groupId);
+          message.success("Elemen berhasil ditambahkan ke grup.");
+        }
+      }}
       onMoveGroupToSection={(groupId, sectionId) => {
         if (!isReadOnly) {
           moveGroupToSection(groupId, sectionId);
@@ -1210,6 +1536,9 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
   const properties = (
     <BuilderProperties
       selectedNode={selectedNode}
+      parentSection={parentSection}
+      document={document}
+      onSelectNode={setSelectedId}
       metadata={metadata}
       onUpdateMetadata={handleUpdateMetadata}
       onUpdateName={(id, name) =>
@@ -1228,7 +1557,7 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       onResetSize={handleResetSize}
       device={device}
       fontOptions={fontOptions}
-      onOpenAssets={() => setIsAssetsOpen(true)}
+      onOpenAssets={handleOpenAssetPicker}
       onDuplicate={(id) => {
         if (!isReadOnly) setSelectedId(duplicateObject(id));
       }}
@@ -1238,6 +1567,40 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
         setSelectedId(null);
       }}
       onToggleLock={(id) => !isReadOnly && toggleLock(id)}
+      onMoveToSection={(id, targetSectionId) => {
+        if (!isReadOnly) {
+          moveObjectToSection(id, targetSectionId);
+          message.success("Elemen berhasil dipindahkan ke section tujuan.");
+        }
+      }}
+      onGroupElements={(elementIds) => {
+        if (!isReadOnly) {
+          const gid = groupElements(elementIds);
+          if (gid) message.success("Elemen berhasil digabungkan ke dalam grup.");
+        }
+      }}
+      onUngroupElements={(groupId) => {
+        if (!isReadOnly) {
+          ungroupElements(groupId);
+          message.success("Grup elemen berhasil dipisahkan (ungrouped).");
+        }
+      }}
+      onRemoveFromGroup={(elementId: string) => {
+        if (!isReadOnly) {
+          removeFromGroup(elementId);
+          message.success("Elemen berhasil dikeluarkan dari grup.");
+        }
+      }}
+      onAddToGroup={(elementId: string, groupId: string) => {
+        if (!isReadOnly) {
+          addToGroup(elementId, groupId);
+          message.success("Elemen berhasil ditambahkan ke grup.");
+        }
+      }}
+      onCopyStyle={handleCopyStyle}
+      onPasteStyle={handlePasteStyle}
+      hasCopiedStyle={Boolean(copiedStyle)}
+      onAddElement={handleAddElement}
     />
   );
 
@@ -1246,7 +1609,8 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
       {fontFaceCss && <style>{fontFaceCss}</style>}
       <BuilderToolbar
         title={metadata.name}
-        status={status}
+        status={metadata.status || status}
+        packageTier={metadata.packageTier}
         onTitleChange={(name) => handleUpdateMetadata("name", name)}
         mode={templateId ? "edit" : mode}
         zoom={zoom}
@@ -1255,6 +1619,8 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
         canRedo={canRedo}
         onZoomChange={setZoom}
         onDeviceChange={setDevice}
+        customWidth={customViewportWidth}
+        onCustomWidthChange={setCustomViewportWidth}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onSave={handleSave}
@@ -1267,22 +1633,30 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
           setIsSidebarCollapsed((collapsed) => !collapsed)
         }
         autosaveStatus={autosaveStatus}
+        lastSavedTime={lastSavedTime}
         onSubmitForReview={handleSubmitForReview}
+        onExportJSON={() => setIsExportModalOpen(true)}
+        onImportJSON={() => setIsImportModalOpen(true)}
+        onOpenRevisionHistory={() => setIsRevisionHistoryOpen(true)}
+        onOpenExternalImport={() => setIsExternalImportOpen(true)}
+        onCreateRevisionDraft={handleCreateRevisionDraft}
       />
       <Alert
         banner
         showIcon={false}
-        type={normalizedStatus === "rejected" ? "warning" : "info"}
+        type={rejectionNote || normalizedStatus === "rejected" || normalizedStatus === "revision" ? "warning" : "info"}
         className="!shrink-0 !rounded-none !border-0 !py-1.5 !text-center !text-xs"
         title={
-          isReadOnly
-            ? normalizedStatus === "in_review" ||
-              normalizedStatus === "pending_review"
-              ? "Template is under review and cannot be changed."
-              : normalizedStatus === "approved"
-                ? "Approved template is read-only in this local Builder."
-                : "Archived template is read-only."
-            : "Local mode: changes remain in browser session state and are not saved to the backend."
+          rejectionNote
+            ? `Catatan Revisi dari Admin: "${rejectionNote}" — Perbaiki kendala di bawah dan ajukan kembali.`
+            : isReadOnly
+              ? normalizedStatus === "in_review" ||
+                normalizedStatus === "pending_review"
+                ? "Template is under review and cannot be changed."
+                : normalizedStatus === "approved" || normalizedStatus === "published"
+                  ? "Approved/Published template is read-only. Gunakan tombol 'Buat Revisi' untuk mengedit salinan baru."
+                  : "Archived template is read-only."
+              : "Local mode: changes remain in browser session state and are not saved to the backend."
         }
       />
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
@@ -1329,16 +1703,33 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
               selectedId={selectedId}
               onSelect={setSelectedId}
               device={device}
+              customWidth={customViewportWidth}
+              cssVariables={resolvedTheme.cssVariables}
               zoom={zoom}
               title={metadata.name}
+              canvasBackground={metadata.canvasBackground}
               editable={!isReadOnly}
               onPositionChange={handleUpdatePosition}
               onSizeChange={handleUpdateSize}
-              onDirectTextChange={(id, text) => {
+              onDirectTextChange={(id, text, fieldKey) => {
                 if (!isReadOnly) {
-                  handleUpdateProp(id, "text", text);
+                  handleUpdateProp(id, fieldKey || "text", text);
                 }
               }}
+              onCopyStyle={handleCopyStyle}
+              onPasteStyle={handlePasteStyle}
+              hasCopiedStyle={Boolean(copiedStyle)}
+              onDuplicate={(id) => {
+                if (!isReadOnly) setSelectedId(duplicateObject(id));
+              }}
+              onDelete={(id) => {
+                if (isReadOnly) return;
+                deleteObject(id);
+                setSelectedId(null);
+              }}
+              onToggleLock={(id) => !isReadOnly && toggleLock(id)}
+              onMoveLayer={(id, dir) => !isReadOnly && moveObject(id, dir)}
+              onDropFromPanel={handleDropFromPanel}
             />
           </div>
         </div>
@@ -1394,6 +1785,7 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
 
       <SectionCatalogModal
         open={isSectionCatalogOpen}
+        existingSections={document.sections}
         onClose={() => setIsSectionCatalogOpen(false)}
         onSelectSection={handleSelectCatalogSection}
       />
@@ -1403,6 +1795,158 @@ export function BuilderLayout({ mode, initialData }: BuilderLayoutProps) {
         targetSectionId={elementCatalogTargetSectionId}
         onClose={() => setIsElementCatalogOpen(false)}
         onAddElement={handleAddElementFromCatalog}
+      />
+
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <CodeOutlined className="text-[#9A5A00]" />
+            <span>Internal Template JSON & Schema Validation</span>
+          </div>
+        }
+        open={isExportModalOpen}
+        onCancel={() => setIsExportModalOpen(false)}
+        width={760}
+        footer={[
+          <Button key="close" onClick={() => setIsExportModalOpen(false)}>
+            Tutup
+          </Button>,
+          <Button
+            key="copy"
+            icon={<CopyOutlined />}
+            onClick={() => {
+              if (exportPackage?.jsonString) {
+                navigator.clipboard.writeText(exportPackage.jsonString);
+                message.success("JSON template berhasil disalin ke clipboard!");
+              }
+            }}
+          >
+            Salin JSON
+          </Button>,
+          <Button
+            key="download"
+            type="primary"
+            icon={<DownloadOutlined />}
+            className="!bg-[#9A5A00] !border-[#9A5A00]"
+            onClick={() => {
+              if (exportPackage?.json) {
+                downloadTemplateJSON(exportPackage.json);
+                message.success("File JSON template berhasil diunduh.");
+              }
+            }}
+          >
+            Unduh File JSON
+          </Button>,
+        ]}
+      >
+        {exportPackage && (
+          <div className="space-y-3.5 py-2">
+            {exportPackage.validation.valid ? (
+              <Alert
+                type="success"
+                showIcon
+                title="Validasi Skema Lolos"
+                description={
+                  <div className="text-xs space-y-1">
+                    <p className="mb-0">
+                      Seluruh aturan MVP 1 (Cover pertama, Closing terakhir, ID unik, struktur parent-child, dan konfigurasi widget) terpenuhi dengan benar.
+                    </p>
+                    {exportPackage.validation.warnings.length > 0 && (
+                      <ul className="list-disc pl-4 text-amber-700 mt-1">
+                        {exportPackage.validation.warnings.map((w, idx) => (
+                          <li key={idx}>{w}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                }
+              />
+            ) : (
+              <Alert
+                type="error"
+                showIcon
+                title="Validasi Skema Memerlukan Perhatian"
+                description={
+                  <ul className="list-disc pl-4 text-xs text-red-600 space-y-0.5">
+                    {exportPackage.validation.errors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                  </ul>
+                }
+              />
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+              <div className="rounded-lg bg-[#FAF8F5] border border-[#EBD9BE] p-2">
+                <span className="block text-stone-500 text-[10px]">Sections</span>
+                <span className="font-bold text-sm text-[#3A2313]">{exportPackage.stats.sectionCount}</span>
+              </div>
+              <div className="rounded-lg bg-[#FAF8F5] border border-[#EBD9BE] p-2">
+                <span className="block text-stone-500 text-[10px]">Containers</span>
+                <span className="font-bold text-sm text-[#3A2313]">{exportPackage.stats.containerCount}</span>
+              </div>
+              <div className="rounded-lg bg-[#FAF8F5] border border-[#EBD9BE] p-2">
+                <span className="block text-stone-500 text-[10px]">Elements</span>
+                <span className="font-bold text-sm text-[#3A2313]">{exportPackage.stats.elementCount}</span>
+              </div>
+              <div className="rounded-lg bg-[#FAF8F5] border border-[#EBD9BE] p-2">
+                <span className="block text-stone-500 text-[10px]">Widgets</span>
+                <span className="font-bold text-sm text-[#3A2313]">{exportPackage.stats.widgetCount}</span>
+              </div>
+              <div className="rounded-lg bg-[#FAF8F5] border border-[#EBD9BE] p-2">
+                <span className="block text-stone-500 text-[10px]">Assets</span>
+                <span className="font-bold text-sm text-[#3A2313]">{exportPackage.stats.assetCount}</span>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold text-[#3A2313]">
+                  Internal JSON Schema (Version: {exportPackage.json.metadata.schemaVersion})
+                </span>
+                <span className="text-[11px] text-stone-400">
+                  Single source of truth desain
+                </span>
+              </div>
+              <pre className="max-h-72 overflow-auto rounded-lg bg-stone-900 p-3 font-mono text-[11px] text-emerald-400">
+                {exportPackage.jsonString}
+              </pre>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <AssetPickerModal
+        open={isAssetPickerOpen}
+        assets={assets}
+        currentUrl={assetPickerTarget?.currentUrl}
+        title={assetPickerTarget?.title}
+        onClose={() => {
+          setIsAssetPickerOpen(false);
+          setAssetPickerTarget(null);
+        }}
+        onSelect={handleSelectAssetForField}
+      />
+
+      <RevisionHistoryModal
+        open={isRevisionHistoryOpen}
+        onClose={() => setIsRevisionHistoryOpen(false)}
+        templateId={templateId}
+        currentDocument={document}
+        currentMetadata={metadata}
+        onRestore={handleRestoreRevision}
+      />
+
+      <ImportJSONModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onApplyToCurrentCanvas={handleApplyImportedJSON}
+      />
+
+      <ExternalDesignImportModal
+        open={isExternalImportOpen}
+        onClose={() => setIsExternalImportOpen(false)}
+        onApplyToCurrentCanvas={handleApplyImportedJSON}
       />
     </div>
   );

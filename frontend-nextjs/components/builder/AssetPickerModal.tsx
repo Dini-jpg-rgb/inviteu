@@ -1,6 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import {
+  UploadOutlined,
+  CloseOutlined,
+  CheckOutlined,
+  ScissorOutlined,
+  SyncOutlined,
+  PictureOutlined,
+} from "@ant-design/icons";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import {
@@ -9,29 +17,41 @@ import {
   ASSET_UPLOAD_UNAVAILABLE_MESSAGE,
   ImageTransformSettings,
 } from "@/lib/template-assets";
+import { BuilderAsset } from "./assets";
 
 export interface AssetPickerModalProps {
-  isOpen: boolean;
+  isOpen?: boolean;
+  open?: boolean;
   onClose: () => void;
   currentImageUrl?: string;
-  onSelectImage: (url: string, assetItem?: TemplateAssetItem) => void;
+  currentUrl?: string;
+  onSelectImage?: (url: string, assetItem?: TemplateAssetItem) => void;
+  onSelect?: (asset: BuilderAsset) => void;
   title?: string;
+  assets?: BuilderAsset[];
 }
 
 export function AssetPickerModal({
   isOpen,
+  open,
   onClose,
   currentImageUrl,
+  currentUrl,
   onSelectImage,
-  title = "Pilih Aset Gambar",
+  onSelect,
+  title = "Pilih Aset Media",
 }: AssetPickerModalProps) {
+  const isModalOpen = open ?? isOpen ?? false;
+  const activeCurrentUrl = currentUrl ?? currentImageUrl;
   const assets = DEFAULT_TEMPLATE_ASSETS;
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedAsset, setSelectedAsset] = useState<TemplateAssetItem | null>(null);
   const [customUrlInput, setCustomUrlInput] = useState<string>("");
   const isCustomUrlValid = (() => {
     try {
-      return new URL(customUrlInput).protocol === "https:";
+      const url = new URL(customUrlInput);
+      return url.protocol === "https:" || url.protocol === "http:";
     } catch {
       return false;
     }
@@ -45,23 +65,54 @@ export function AssetPickerModal({
     { id: "backgrounds", label: "Background & Tekstur" },
   ];
 
-  const filteredAssets = selectedCategory === "all"
-    ? assets
-    : assets.filter((a) => a.category === selectedCategory);
+  const filteredAssets = assets.filter((a) => {
+    const matchesCategory =
+      selectedCategory === "all" || a.category === selectedCategory;
+    const matchesSearch =
+      !searchQuery.trim() ||
+      a.original_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      Boolean(a.asset_key && a.asset_key.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCategory && matchesSearch;
+  });
 
   const handleConfirmSelect = () => {
     if (selectedAsset) {
-      onSelectImage(selectedAsset.url, selectedAsset);
+      if (onSelectImage) onSelectImage(selectedAsset.url, selectedAsset);
+      if (onSelect) {
+        onSelect({
+          id: String(selectedAsset.id),
+          name: selectedAsset.original_name,
+          previewUrl: selectedAsset.url,
+          type: "image",
+          fileName: selectedAsset.original_name,
+          mimeType: selectedAsset.mime_type || "image/jpeg",
+          fileSize: selectedAsset.size || 0,
+          createdAt: new Date().toISOString(),
+        });
+      }
       onClose();
     } else if (isCustomUrlValid) {
-      onSelectImage(customUrlInput.trim());
+      const url = customUrlInput.trim();
+      if (onSelectImage) onSelectImage(url);
+      if (onSelect) {
+        onSelect({
+          id: `custom-${Date.now()}`,
+          name: "Custom URL",
+          previewUrl: url,
+          type: "image",
+          fileName: "custom-image.jpg",
+          mimeType: "image/jpeg",
+          fileSize: 0,
+          createdAt: new Date().toISOString(),
+        });
+      }
       onClose();
     }
   };
 
   return (
     <Modal
-      isOpen={isOpen}
+      isOpen={isModalOpen}
       onClose={onClose}
       title={title}
       description="Pilih foto dari pustaka aset template InviteU atau gunakan URL gambar publik."
@@ -110,11 +161,32 @@ export function AssetPickerModal({
               variant="outline"
               disabled
               title={ASSET_UPLOAD_UNAVAILABLE_MESSAGE}
-              className="text-xs w-full sm:w-auto"
+              className="text-xs w-full sm:w-auto flex items-center justify-center gap-1.5"
             >
-              📤 Unggah dari Perangkat
+              <UploadOutlined />
+              <span>Unggah dari Perangkat</span>
             </Button>
           </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari nama file aset..."
+            className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-zinc-400 hover:text-zinc-600 flex items-center"
+            >
+              <CloseOutlined className="text-[10px]" />
+            </button>
+          )}
         </div>
 
         {/* Category Filter Pills */}
@@ -137,38 +209,48 @@ export function AssetPickerModal({
 
         {/* Asset Grid Preview */}
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 max-h-64 overflow-y-auto p-1 border border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50/50 dark:bg-zinc-900/40">
-          {filteredAssets.map((asset) => {
-            const isSelected = selectedAsset?.id === asset.id || currentImageUrl === asset.url;
-            return (
-              <div
-                key={asset.id}
-                onClick={() => {
-                  setSelectedAsset(asset);
-                  setCustomUrlInput("");
-                }}
-                className={`relative aspect-4/3 rounded-lg overflow-hidden border-2 cursor-pointer transition-all group ${
-                  isSelected
-                    ? "border-indigo-600 ring-2 ring-indigo-400 shadow-md scale-[1.02]"
-                    : "border-transparent hover:border-zinc-300 dark:hover:border-zinc-700"
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={asset.url}
-                  alt={asset.original_name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-1.5 pt-4 text-white text-[9px] truncate">
-                  {asset.original_name}
-                </div>
-                {isSelected && (
-                  <div className="absolute top-1.5 right-1.5 bg-indigo-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow-xs">
-                    ✓
+          {filteredAssets.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-xs text-zinc-400">
+              Tidak ada aset yang cocok dengan filter atau kata kunci.
+            </div>
+          ) : (
+            filteredAssets.map((asset) => {
+              const isSelected = selectedAsset?.id === asset.id || activeCurrentUrl === asset.url;
+              const formattedSize = asset.size ? `${Math.round(asset.size / 1024)} KB` : "";
+              return (
+                <div
+                  key={asset.id}
+                  onClick={() => {
+                    setSelectedAsset(asset);
+                    setCustomUrlInput("");
+                  }}
+                  className={`relative aspect-4/3 rounded-lg overflow-hidden border-2 cursor-pointer transition-all group ${
+                    isSelected
+                      ? "border-indigo-600 ring-2 ring-indigo-400 shadow-md scale-[1.02]"
+                      : "border-transparent hover:border-zinc-300 dark:hover:border-zinc-700"
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={asset.url}
+                    alt={asset.original_name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent p-1.5 pt-4 text-white text-[9px]">
+                    <div className="truncate font-medium">{asset.original_name}</div>
+                    {formattedSize && (
+                      <div className="text-[8px] text-zinc-300">{formattedSize}</div>
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                  {isSelected && (
+                    <div className="absolute top-1.5 right-1.5 bg-indigo-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow-xs">
+                      <CheckOutlined className="text-[9px]" />
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Custom URL Input */}
@@ -240,9 +322,10 @@ export function ImageControlField({
           <button
             type="button"
             onClick={onRemoveImage}
-            className="text-[10px] text-rose-600 hover:text-rose-700 hover:underline font-semibold cursor-pointer"
+            className="text-[10px] text-rose-600 hover:text-rose-700 hover:underline font-semibold cursor-pointer inline-flex items-center gap-1"
           >
-            Hapus Gambar ✕
+            <span>Hapus Gambar</span>
+            <CloseOutlined className="text-[9px]" />
           </button>
         )}
       </div>
@@ -272,9 +355,10 @@ export function ImageControlField({
               <button
                 type="button"
                 onClick={() => setShowAdvancedCrop(!showAdvancedCrop)}
-                className="px-2 py-1 bg-zinc-900 text-white rounded text-[11px] font-semibold shadow-xs hover:bg-zinc-800 cursor-pointer"
+                className="px-2 py-1 bg-zinc-900 text-white rounded text-[11px] font-semibold shadow-xs hover:bg-zinc-800 cursor-pointer inline-flex items-center gap-1"
               >
-                Atur Crop ✂️
+                <ScissorOutlined className="text-[10px]" />
+                <span>Atur Crop</span>
               </button>
             </div>
           </div>
@@ -284,9 +368,10 @@ export function ImageControlField({
             <button
               type="button"
               onClick={() => setIsPickerOpen(true)}
-              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer"
+              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer inline-flex items-center gap-1"
             >
-              🔄 Ganti dari Aset
+              <SyncOutlined className="text-[10px]" />
+              <span>Ganti dari Aset</span>
             </button>
             <button
               type="button"
@@ -407,7 +492,7 @@ export function ImageControlField({
           onClick={() => setIsPickerOpen(true)}
           className="w-full py-6 border-2 border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl text-center text-zinc-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors cursor-pointer flex flex-col items-center justify-center space-y-1 bg-white/50 dark:bg-zinc-800/20"
         >
-          <span className="text-xl">🖼️</span>
+          <PictureOutlined className="text-xl text-zinc-400" />
           <span className="text-xs font-semibold">+ Pilih Gambar</span>
           <span className="text-[10px] text-zinc-400">Pilih dari pustaka aset template</span>
         </button>

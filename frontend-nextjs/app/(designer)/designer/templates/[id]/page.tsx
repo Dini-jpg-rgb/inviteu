@@ -591,7 +591,7 @@ export default function TemplatePreviewPage() {
                       : item.status === "in_review"
                         ? "#9A5A00"
                         : "gray",
-                children: (
+                content: (
                   <div>
                     <div className="flex items-center justify-between">
                       <Text strong className="text-xs text-[#3A2313]">

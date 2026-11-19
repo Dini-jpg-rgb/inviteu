@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { CheckOutlined, CopyOutlined } from "@ant-design/icons";
 import { SectionProperties } from "../types";
 
 export function DigitalGiftWidget(props: SectionProperties) {
@@ -100,9 +101,19 @@ export function DigitalGiftWidget(props: SectionProperties) {
         <button
           type="button"
           onClick={handleCopy}
-          className="w-full py-1.5 px-3 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+          className="w-full py-1.5 px-3 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
         >
-          <span>{copied ? "✓ Tersalin!" : "📋 Salin Nomor Rekening"}</span>
+          {copied ? (
+            <>
+              <CheckOutlined className="text-xs" />
+              <span>Tersalin!</span>
+            </>
+          ) : (
+            <>
+              <CopyOutlined className="text-xs" />
+              <span>Salin Nomor Rekening</span>
+            </>
+          )}
         </button>
       </div>
 

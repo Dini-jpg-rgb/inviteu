@@ -143,7 +143,7 @@ export default function DesignerDashboardPage() {
         (a, b) =>
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
       )
-      .slice(0, 4);
+      .slice(0, 5);
   }, [templates]);
 
   // Notifications logic
@@ -244,8 +244,8 @@ export default function DesignerDashboardPage() {
   );
 
   return (
-    <div className="space-y-5">
-      {/* 1. Header & Quick Actions */}
+    <div className="space-y-6">
+      {/* 1. Header */}
       <DesignerPageHeader
         title="Dashboard"
         description="Ringkasan produktivitas, status template, dan tinjauan kurasi Anda."
@@ -282,27 +282,27 @@ export default function DesignerDashboardPage() {
         }
       />
 
-      {/* 2. Overview: 4 Metrics Cards (Compact & Informative) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+      {/* 2. Overview: 4 Metrics Cards */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
         {/* Total Templates */}
         <Card
           className="border-[#EBD9BE] bg-white transition-all hover:border-[#FCB040]"
-          styles={{ body: { padding: "14px 16px" } }}
+          styles={{ body: { padding: "16px 20px" } }}
         >
           <div className="flex items-center justify-between">
             <div>
               <Text type="secondary" className="text-xs font-medium uppercase tracking-wider text-[#765D48]">
                 Total Templates
               </Text>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[#3A2313]">
+              <div className="mt-1 text-2xl font-bold tracking-tight text-[#3A2313]">
                 {totalTemplates}
               </div>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FFF8EE] text-base text-[#9A5A00]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFF8EE] text-base text-[#9A5A00]">
               <FolderOpenOutlined />
             </div>
           </div>
-          <div className="mt-2 text-[11px] text-[#765D48]">
+          <div className="mt-3 text-[11px] text-[#765D48]">
             Koleksi template terdaftar
           </div>
         </Card>
@@ -310,22 +310,22 @@ export default function DesignerDashboardPage() {
         {/* Draft */}
         <Card
           className="border-[#EBD9BE] bg-white transition-all hover:border-[#FCB040]"
-          styles={{ body: { padding: "14px 16px" } }}
+          styles={{ body: { padding: "16px 20px" } }}
         >
           <div className="flex items-center justify-between">
             <div>
               <Text type="secondary" className="text-xs font-medium uppercase tracking-wider text-[#765D48]">
                 Draft
               </Text>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[#3A2313]">
+              <div className="mt-1 text-2xl font-bold tracking-tight text-[#3A2313]">
                 {draftCount}
               </div>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-stone-100 text-base text-stone-700">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-stone-100 text-base text-stone-700">
               <EditOutlined />
             </div>
           </div>
-          <div className="mt-2 text-[11px] text-[#765D48]">
+          <div className="mt-3 text-[11px] text-[#765D48]">
             Sedang dalam pengerjaan
           </div>
         </Card>
@@ -333,22 +333,22 @@ export default function DesignerDashboardPage() {
         {/* Pending Review */}
         <Card
           className="border-[#EBD9BE] bg-white transition-all hover:border-[#FCB040]"
-          styles={{ body: { padding: "14px 16px" } }}
+          styles={{ body: { padding: "16px 20px" } }}
         >
           <div className="flex items-center justify-between">
             <div>
               <Text type="secondary" className="text-xs font-medium uppercase tracking-wider text-[#765D48]">
                 Pending Review
               </Text>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[#9A5A00]">
+              <div className="mt-1 text-2xl font-bold tracking-tight text-[#9A5A00]">
                 {inReviewCount}
               </div>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FDEBD3] text-base text-[#9A5A00]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FDEBD3] text-base text-[#9A5A00]">
               <ClockCircleOutlined />
             </div>
           </div>
-          <div className="mt-2 text-[11px] text-[#765D48]">
+          <div className="mt-3 text-[11px] text-[#765D48]">
             Menunggu kurasi admin
           </div>
         </Card>
@@ -356,58 +356,68 @@ export default function DesignerDashboardPage() {
         {/* Published */}
         <Card
           className="border-[#EBD9BE] bg-white transition-all hover:border-[#FCB040]"
-          styles={{ body: { padding: "14px 16px" } }}
+          styles={{ body: { padding: "16px 20px" } }}
         >
           <div className="flex items-center justify-between">
             <div>
               <Text type="secondary" className="text-xs font-medium uppercase tracking-wider text-[#765D48]">
                 Published
               </Text>
-              <div className="mt-0.5 text-2xl font-bold tracking-tight text-[#267044]">
+              <div className="mt-1 text-2xl font-bold tracking-tight text-[#267044]">
                 {publishedCount}
               </div>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-base text-[#267044]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-base text-[#267044]">
               <CheckCircleOutlined />
             </div>
           </div>
-          <div className="mt-2 text-[11px] text-[#765D48]">
+          <div className="mt-3 text-[11px] text-[#765D48]">
             Aktif di katalog Partner
           </div>
         </Card>
       </div>
 
-      {/* 3. Needs Attention Section (Revision / Rejected with Admin Note) */}
+      {/* 3. Needs Attention — compact alert banner */}
       {attentionTemplates.length > 0 && (
         <Card
           className="border-[#F3C5C0] bg-[#FFF5F4]"
           styles={{ body: { padding: "16px 20px" } }}
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#B84438]/10 text-base text-[#B84438]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            {/* Left: icon + items */}
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#B84438]/10 text-sm text-[#B84438]">
                 <ExclamationCircleOutlined />
               </div>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
                   <Text strong className="text-sm text-[#7A2925]">
-                    Needs Attention: Revisi Diperlukan
+                    Needs Attention
                   </Text>
                   <Tag color="error" className="!mr-0 !text-[11px] !font-medium">
                     {attentionTemplates.length} Template
                   </Tag>
                 </div>
-                {attentionTemplates.map((item) => (
-                  <div key={item.id} className="mt-1.5 text-xs text-[#7A2925]">
-                    <span className="font-semibold">{item.name}</span>:{" "}
-                    <span className="italic">
-                      &quot;{item.rejection_note || "Admin meminta perbaikan sebelum disetujui."}&quot;
-                    </span>
-                  </div>
-                ))}
+                <div className="flex flex-col gap-1.5">
+                  {attentionTemplates.map((item) => (
+                    <div key={item.id} className="flex items-baseline gap-1 text-xs text-[#7A2925]">
+                      <Link
+                        href={`/designer/templates/${item.id}`}
+                        className="shrink-0 font-semibold hover:underline text-[#7A2925]"
+                      >
+                        {item.name}
+                      </Link>
+                      <span className="text-[#7A2925]/70">—</span>
+                      <span className="italic truncate text-[#7A2925]/80">
+                        {item.rejection_note || "Admin meminta perbaikan sebelum disetujui."}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
+            {/* Right: CTA buttons for first item */}
             <div className="flex shrink-0 items-center gap-2">
               <Link href={`/designer/templates/${attentionTemplates[0].id}/edit`}>
                 <Button
@@ -417,7 +427,7 @@ export default function DesignerDashboardPage() {
                   icon={<EditOutlined />}
                   className="text-xs"
                 >
-                  Perbaiki di Builder
+                  Perbaiki
                 </Button>
               </Link>
               <Link href={`/designer/templates/${attentionTemplates[0].id}`}>
@@ -430,14 +440,16 @@ export default function DesignerDashboardPage() {
         </Card>
       )}
 
-      {/* 4. Main Grid: Continue Working & Recent Activity */}
-      <Row gutter={[16, 16]}>
-        {/* Left Column: Continue Working & Quick Templates */}
+      {/* 4. Main Grid: Left (Continue Working + Template Terbaru) | Right (Recent Activity) */}
+      <Row gutter={[20, 20]}>
+        {/* Left Column */}
         <Col xs={24} lg={15}>
-          <div className="space-y-4">
+          <div className="space-y-5">
             {/* Continue Working Card */}
             {lastActiveDraft && (
               <Card
+                className="border-[#EBD9BE]"
+                styles={{ body: { padding: "16px 20px" } }}
                 title={
                   <div className="flex items-center gap-2">
                     <ThunderboltOutlined className="text-[#9A5A00]" />
@@ -448,14 +460,13 @@ export default function DesignerDashboardPage() {
                 }
                 extra={
                   <Text type="secondary" className="text-xs">
-                    Terakhir diedit: {formatDate(lastActiveDraft.updated_at)}
+                    Diedit {formatDate(lastActiveDraft.updated_at)}
                   </Text>
                 }
-                className="border-[#EBD9BE]"
-                styles={{ body: { padding: "16px 20px" } }}
               >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3.5">
+                <div className="flex items-center justify-between gap-4">
+                  {/* Thumbnail + Info */}
+                  <div className="flex items-center gap-4 min-w-0">
                     {lastActiveDraft.thumbnail ? (
                       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-[#EBD9BE] bg-[#FFF8EE]">
                         <Image
@@ -468,45 +479,28 @@ export default function DesignerDashboardPage() {
                       </div>
                     ) : (
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[#EBD9BE] bg-[#FFF8EE] text-[#9A5A00]">
-                        <FileTextOutlined className="text-2xl" />
+                        <FileTextOutlined className="text-xl" />
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Title level={5} className="!mb-0 truncate !text-[15px]">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <Title level={5} className="!mb-0 truncate !text-[14px] !leading-tight">
                           {lastActiveDraft.name}
                         </Title>
                         <DesignerStatusTag status={lastActiveDraft.status} />
                       </div>
-                      <Text type="secondary" className="mt-0.5 block truncate text-xs">
-                        {lastActiveDraft.category_name} · {lastActiveDraft.style}
+                      <Text type="secondary" className="block truncate text-xs">
+                        {lastActiveDraft.category_name}
+                        {lastActiveDraft.style ? ` · ${lastActiveDraft.style}` : ""}
                       </Text>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <span
-                          className="h-3 w-3 rounded-full border border-black/10"
-                          style={{ backgroundColor: lastActiveDraft.primaryColor }}
-                          title={`Primary ${lastActiveDraft.primaryColor}`}
-                        />
-                        <span
-                          className="h-3 w-3 rounded-full border border-black/10"
-                          style={{ backgroundColor: lastActiveDraft.secondaryColor }}
-                          title={`Secondary ${lastActiveDraft.secondaryColor}`}
-                        />
-                        <span className="text-[11px] text-[#765D48]">
-                          {lastActiveDraft.slug}
-                        </span>
-                      </div>
                     </div>
                   </div>
 
+                  {/* Actions */}
                   <div className="flex shrink-0 items-center gap-2">
                     <Link href={`/designer/templates/${lastActiveDraft.id}/edit`}>
-                      <Button
-                        type="primary"
-                        icon={<EditOutlined />}
-                        className="text-xs"
-                      >
-                        Lanjutkan Mengedit
+                      <Button type="primary" size="small" icon={<EditOutlined />} className="text-xs">
+                        Lanjutkan
                       </Button>
                     </Link>
                     <Link href={`/designer/templates/${lastActiveDraft.id}`}>
@@ -519,8 +513,10 @@ export default function DesignerDashboardPage() {
               </Card>
             )}
 
-            {/* Quick Templates List */}
+            {/* Template Terbaru */}
             <Card
+              className="border-[#EBD9BE]"
+              styles={{ body: { padding: 0 } }}
               title={
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-[#3A2313]">
@@ -533,38 +529,38 @@ export default function DesignerDashboardPage() {
                   </Link>
                 </div>
               }
-              className="border-[#EBD9BE]"
-              styles={{ body: { padding: 0 } }}
             >
               {recentTemplates.length ? (
                 <div className="divide-y divide-[#EBD9BE]">
                   {recentTemplates.map((template) => (
                     <div
                       key={template.id}
-                      className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-[#FFF8EE]/50"
+                      className="flex items-center justify-between px-5 py-3 transition-colors hover:bg-[#FFF8EE]/50"
                     >
+                      {/* Left: color dot + name + meta */}
                       <div className="flex min-w-0 items-center gap-3">
                         <div
-                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          className="h-2 w-2 shrink-0 rounded-full"
                           style={{ backgroundColor: template.primaryColor || "#FCB040" }}
                         />
                         <div className="min-w-0">
                           <Link
                             href={`/designer/templates/${template.id}`}
-                            className="block truncate font-medium text-xs sm:text-sm text-[#3A2313] hover:!text-[#9A5A00]"
+                            className="block truncate text-xs font-medium text-[#3A2313] hover:!text-[#9A5A00] sm:text-sm"
                           >
                             {template.name}
                           </Link>
-                          <Text type="secondary" className="block truncate text-[11px]">
-                            {template.category_name} · Diperbarui {formatDate(template.updated_at)}
+                          <Text type="secondary" className="block truncate text-[11px] mt-0.5">
+                            {template.category_name} · {formatDate(template.updated_at)}
                           </Text>
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                      {/* Right: status badge + action */}
+                      <div className="flex shrink-0 items-center gap-2">
                         <DesignerStatusTag status={template.status} />
                         <Link href={`/designer/templates/${template.id}`}>
-                          <Button type="text" size="small" className="!text-xs">
+                          <Button type="text" size="small" className="!text-xs !px-1.5">
                             Detail
                           </Button>
                         </Link>
@@ -573,7 +569,7 @@ export default function DesignerDashboardPage() {
                   ))}
                 </div>
               ) : (
-                <div className="py-8 text-center">
+                <div className="py-10 text-center">
                   <Empty description="Belum ada template yang dibuat" />
                 </div>
               )}
@@ -581,135 +577,98 @@ export default function DesignerDashboardPage() {
           </div>
         </Col>
 
-        {/* Right Column: Recent Activity & Review Decisions */}
+        {/* Right Column: Recent Activity */}
         <Col xs={24} lg={9}>
-          <div className="space-y-4">
-            {/* Recent Activity Card */}
-            <Card
-              title={
-                <div className="flex items-center gap-2">
-                  <ClockCircleOutlined className="text-[#9A5A00]" />
-                  <span className="text-sm font-semibold text-[#3A2313]">
-                    Recent Activity & Reviews
-                  </span>
-                </div>
-              }
-              className="border-[#EBD9BE]"
-              styles={{ body: { padding: "16px 20px" } }}
-            >
-              <Timeline
-                className="!text-xs"
-                items={[
-                  {
-                    color: "#B84438",
-                    children: (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <Text strong className="text-xs text-[#7A2925]">
-                            Catatan Revisi Admin
-                          </Text>
-                          <Text type="secondary" className="text-[10px]">
-                            Hari ini
-                          </Text>
-                        </div>
-                        <Text type="secondary" className="mt-0.5 block text-[11px]">
-                          Admin meminta perbaikan kontras teks pada <strong>Modern Intimate</strong>.
-                        </Text>
-                      </div>
-                    ),
-                  },
-                  {
-                    color: "#9A5A00",
-                    children: (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <Text strong className="text-xs text-[#3A2313]">
-                            Diajukan untuk Review
-                          </Text>
-                          <Text type="secondary" className="text-[10px]">
-                            Kemarin
-                          </Text>
-                        </div>
-                        <Text type="secondary" className="mt-0.5 block text-[11px]">
-                          Template <strong>Garden Evening</strong> telah diajukan ke kurator.
-                        </Text>
-                      </div>
-                    ),
-                  },
-                  {
-                    color: "#267044",
-                    children: (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <Text strong className="text-xs text-[#267044]">
-                            Template Approved
-                          </Text>
-                          <Text type="secondary" className="text-[10px]">
-                            3 hari lalu
-                          </Text>
-                        </div>
-                        <Text type="secondary" className="mt-0.5 block text-[11px]">
-                          <strong>Botanical Wedding</strong> disetujui dan aktif di katalog publik.
-                        </Text>
-                      </div>
-                    ),
-                  },
-                  {
-                    color: "gray",
-                    children: (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <Text strong className="text-xs text-[#3A2313]">
-                            Draft Dibuat
-                          </Text>
-                          <Text type="secondary" className="text-[10px]">
-                            5 hari lalu
-                          </Text>
-                        </div>
-                        <Text type="secondary" className="mt-0.5 block text-[11px]">
-                          Inisialisasi tema Botanical Wedding v1.0 pada Page Builder.
-                        </Text>
-                      </div>
-                    ),
-                  },
-                ]}
-              />
-            </Card>
-
-            {/* Quick Actions Shortcuts */}
-            <Card
-              title={
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#765D48]">
-                  Quick Actions
+          <Card
+            title={
+              <div className="flex items-center gap-2">
+                <ClockCircleOutlined className="text-[#9A5A00]" />
+                <span className="text-sm font-semibold text-[#3A2313]">
+                  Recent Activity &amp; Reviews
                 </span>
-              }
-              className="border-[#EBD9BE] bg-[#FFF8EE]/60"
-              styles={{ body: { padding: "12px 16px" } }}
-            >
-              <div className="grid grid-cols-1 gap-2">
-                <Link href="/designer/templates/create">
-                  <Button
-                    block
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    className="!justify-start text-xs hover:!border-[#FCB040] hover:!text-[#9A5A00]"
-                  >
-                    Buat Template Baru
-                  </Button>
-                </Link>
-                <Link href="/designer/templates">
-                  <Button
-                    block
-                    type="text"
-                    icon={<FolderOpenOutlined />}
-                    className="!justify-start text-xs hover:!bg-[#FDEBD3]"
-                  >
-                    Kelola Semua Template ({totalTemplates})
-                  </Button>
-                </Link>
               </div>
-            </Card>
-          </div>
+            }
+            className="border-[#EBD9BE] h-full"
+            styles={{ body: { padding: "20px 24px" } }}
+          >
+            <Timeline
+              className="!text-xs"
+              items={[
+                {
+                  color: "#B84438",
+                  content: (
+                    <div className="pb-1">
+                      <div className="flex items-center justify-between">
+                        <Text strong className="text-xs text-[#7A2925]">
+                          Catatan Revisi Admin
+                        </Text>
+                        <Text type="secondary" className="text-[10px]">
+                          Hari ini
+                        </Text>
+                      </div>
+                      <Text type="secondary" className="mt-1 block text-[11px] leading-relaxed">
+                        Admin meminta perbaikan kontras teks pada <strong>Modern Intimate</strong>.
+                      </Text>
+                    </div>
+                  ),
+                },
+                {
+                  color: "#9A5A00",
+                  content: (
+                    <div className="pb-1">
+                      <div className="flex items-center justify-between">
+                        <Text strong className="text-xs text-[#3A2313]">
+                          Diajukan untuk Review
+                        </Text>
+                        <Text type="secondary" className="text-[10px]">
+                          Kemarin
+                        </Text>
+                      </div>
+                      <Text type="secondary" className="mt-1 block text-[11px] leading-relaxed">
+                        Template <strong>Garden Evening</strong> telah diajukan ke kurator.
+                      </Text>
+                    </div>
+                  ),
+                },
+                {
+                  color: "#267044",
+                  content: (
+                    <div className="pb-1">
+                      <div className="flex items-center justify-between">
+                        <Text strong className="text-xs text-[#267044]">
+                          Template Approved
+                        </Text>
+                        <Text type="secondary" className="text-[10px]">
+                          3 hari lalu
+                        </Text>
+                      </div>
+                      <Text type="secondary" className="mt-1 block text-[11px] leading-relaxed">
+                        <strong>Botanical Wedding</strong> disetujui dan aktif di katalog publik.
+                      </Text>
+                    </div>
+                  ),
+                },
+                {
+                  color: "gray",
+                  content: (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Text strong className="text-xs text-[#3A2313]">
+                          Draft Dibuat
+                        </Text>
+                        <Text type="secondary" className="text-[10px]">
+                          5 hari lalu
+                        </Text>
+                      </div>
+                      <Text type="secondary" className="mt-1 block text-[11px] leading-relaxed">
+                        Inisialisasi tema Botanical Wedding v1.0 pada Page Builder.
+                      </Text>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </Card>
         </Col>
       </Row>
     </div>

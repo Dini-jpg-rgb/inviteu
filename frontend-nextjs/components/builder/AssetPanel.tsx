@@ -3,23 +3,30 @@
 import React, { useMemo, useState } from "react";
 import {
   AppstoreOutlined,
+  BookOutlined,
   BorderOutlined,
   CalendarOutlined,
   CheckOutlined,
+  ClockCircleOutlined,
   CloudUploadOutlined,
+  ColumnHeightOutlined,
   ContainerOutlined,
+  CrownOutlined,
+  CustomerServiceOutlined,
   DeleteOutlined,
   EditOutlined,
   EyeOutlined,
-  FileImageOutlined,
   FileTextOutlined,
   FontSizeOutlined,
+  GiftOutlined,
+  HeartOutlined,
   InsertRowBelowOutlined,
   PictureOutlined,
   PlaySquareOutlined,
+  ReadOutlined,
   SearchOutlined,
-  SoundOutlined,
   UserAddOutlined,
+  VideoCameraOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -27,7 +34,6 @@ import {
   Button,
   Card,
   Empty,
-  Image,
   Input,
   Modal,
   Select,
@@ -57,13 +63,10 @@ const { Dragger } = Upload;
 const { Text } = Typography;
 
 type AssetCategory =
-  | "sections"
-  | "text"
-  | "images"
-  | "videos"
-  | "shapes"
-  | "buttons"
+  | "layout"
+  | "basic"
   | "widgets"
+  | "sections"
   | "fonts"
   | "upload"
   | "uploaded";
@@ -72,10 +75,10 @@ interface AssetPanelProps {
   assets: BuilderAsset[];
   selectedNode: BuilderNode | null;
   isReadOnly: boolean;
-  mode: "add" | "uploads";
+  mode: "add" | "elements" | "widgets" | "uploads";
   onAddSection: () => void;
-  onAddElement: (type: ElementType) => void;
-  onAddWidget: (type: WidgetType) => void;
+  onAddElement: (type: ElementType, sectionId?: string, parentContainerId?: string) => void;
+  onAddWidget: (type: WidgetType, sectionId?: string, parentContainerId?: string) => void;
   onUploadAsset: (asset: BuilderAsset) => void;
   onUseAsset: (asset: BuilderAsset) => void;
   onRenameAsset: (assetId: string, name: string) => void;
@@ -92,108 +95,132 @@ interface AssetOption {
 }
 
 const assetOptions: Partial<Record<AssetCategory, AssetOption[]>> = {
-  sections: [
+  layout: [
     {
-      label: "Blank section",
-      description: "Container kosong untuk menyusun konten.",
-      icon: <InsertRowBelowOutlined />,
-      action: "section",
+      label: "Container",
+      description: "Wadah tata letak utama dengan kontrol Flexbox atau Grid.",
+      icon: <ContainerOutlined />,
+      action: "container",
+    },
+    {
+      label: "Nested Container",
+      description: "Container bertingkat di dalam container untuk layout yang lebih kaya.",
+      icon: <AppstoreOutlined />,
+      action: "nested_container",
     },
   ],
-  text: [
+  basic: [
     {
       label: "Heading",
-      description: "Heading text",
+      description: "Judul heading (H1 - H6) dengan ukuran dan bobot tegas.",
       icon: <FontSizeOutlined />,
-      action: "text",
+      action: "heading",
     },
     {
-      label: "Subheading",
-      description: "Subheading text",
-      icon: <FontSizeOutlined />,
+      label: "Text",
+      description: "Paragraf teks biasa, deskripsi, atau pesan pembuka.",
+      icon: <FileTextOutlined />,
       action: "text",
     },
-    {
-      label: "Body text",
-      description: "Body copy",
-      icon: <FontSizeOutlined />,
-      action: "text",
-    },
-  ],
-  images: [
     {
       label: "Image",
-      description: "Tambahkan gambar kosong, lalu pilih aset.",
+      description: "Gambar atau foto tunggal dengan opsi aspect-ratio & focal point.",
       icon: <PictureOutlined />,
       action: "image",
     },
-  ],
-  videos: [
     {
-      label: "Video",
-      description: "Tambahkan video kosong, lalu pilih aset.",
-      icon: <PlaySquareOutlined />,
-      action: "video",
-    },
-  ],
-  shapes: [
-    {
-      label: "Shape",
-      description: "Persegi atau bentuk visual sederhana.",
+      label: "Button",
+      description: "Tombol interaktif dengan teks label dan tautan link.",
       icon: <BorderOutlined />,
-      action: "shape",
-    },
-    {
-      label: "Decoration",
-      description: "Tambahkan dekorasi berbentuk sederhana.",
-      icon: <BorderOutlined />,
-      action: "shape",
+      action: "button",
     },
     {
       label: "Divider",
-      description: "Pemisah antar elemen.",
+      description: "Garis pemisah antar section atau elemen.",
       icon: <InsertRowBelowOutlined />,
       action: "divider",
     },
     {
-      label: "Container",
-      description: "Area visual untuk pengelompokan.",
-      icon: <ContainerOutlined />,
-      action: "container",
+      label: "Spacer",
+      description: "Ruang pemisah vertikal dengan ketinggian yang dapat disesuaikan.",
+      icon: <ColumnHeightOutlined />,
+      action: "spacer",
     },
-  ],
-  buttons: [
     {
-      label: "Button",
-      description: "Tombol dengan label dan tautan.",
-      icon: <AppstoreOutlined />,
-      action: "button",
+      label: "Icon",
+      description: "Simbol grafis vektor (cinta, tanggal, pin lokasi, musik, dll).",
+      icon: <HeartOutlined />,
+      action: "icon",
     },
   ],
   widgets: [
     {
-      label: "Countdown",
-      description: "Widget hitung mundur acara.",
+      label: "Cover & Hero",
+      description: "Header visual utama, foto cover & nama mempelai.",
+      icon: <CrownOutlined />,
+      action: "cover",
+    },
+    {
+      label: "Event Details",
+      description: "Waktu, tanggal acara, gedung dan alamat lengkap.",
       icon: <CalendarOutlined />,
+      action: "event_details",
+    },
+    {
+      label: "Gallery",
+      description: "Koleksi foto pre-wedding & momen bahagia.",
+      icon: <PictureOutlined />,
+      action: "gallery",
+    },
+    {
+      label: "Story / Timeline",
+      description: "Perjalanan kisah cinta kedua mempelai.",
+      icon: <ReadOutlined />,
+      action: "story",
+    },
+    {
+      label: "Countdown",
+      description: "Widget hitung mundur interaktif hari bahagia.",
+      icon: <ClockCircleOutlined />,
       action: "countdown",
     },
     {
-      label: "RSVP",
-      description: "Widget konfirmasi kehadiran.",
+      label: "Music Player",
+      description: "Pemutar musik latar romantis dengan kontrol audio.",
+      icon: <CustomerServiceOutlined />,
+      action: "music",
+    },
+    {
+      label: "RSVP Form",
+      description: "Formulir konfirmasi kehadiran tamu secara langsung.",
       icon: <UserAddOutlined />,
       action: "rsvp",
     },
     {
-      label: "Music",
-      description: "Widget pemutar musik.",
-      icon: <SoundOutlined />,
-      action: "music",
+      label: "Guestbook",
+      description: "Buku tamu dan ucapan doa restu.",
+      icon: <BookOutlined />,
+      action: "guestbook",
     },
     {
       label: "Digital Gift",
-      description: "Widget informasi hadiah digital.",
-      icon: <FileImageOutlined />,
+      description: "Informasi hadiah digital dan nomor rekening.",
+      icon: <GiftOutlined />,
       action: "digital_gift",
+    },
+    {
+      label: "Video Greeting (Add-on)",
+      description: "Fitur Add-on: Video ucapan sinematik.",
+      icon: <VideoCameraOutlined />,
+      action: "video_greeting",
+    },
+  ],
+  sections: [
+    {
+      label: "Blank section",
+      description: "Section kosong baru untuk menyusun konten.",
+      icon: <InsertRowBelowOutlined />,
+      action: "section",
     },
   ],
 };
@@ -205,13 +232,10 @@ const assetTypeLabels: Record<BuilderAssetType, string> = {
 };
 
 const categoryLabels: Record<AssetCategory, string> = {
+  layout: "Layout",
+  basic: "Basic Elements",
+  widgets: "InviteU Widgets",
   sections: "Sections",
-  text: "Text",
-  images: "Images",
-  videos: "Videos",
-  shapes: "Shapes",
-  buttons: "Buttons",
-  widgets: "Widgets",
   fonts: "Fonts",
   uploaded: "Uploaded assets",
   upload: "Upload",
@@ -245,9 +269,13 @@ export function AssetPanel(props: AssetPanelProps) {
     isAssetUsed,
   } = props;
   const { message } = AntdApp.useApp();
-  const [category, setCategory] = useState<AssetCategory>(
-    mode === "uploads" ? "uploaded" : "sections"
-  );
+  const initialCategory: AssetCategory =
+    mode === "uploads"
+      ? "uploaded"
+      : mode === "widgets"
+      ? "widgets"
+      : "layout";
+  const [category, setCategory] = useState<AssetCategory>(initialCategory);
   const [search, setSearch] = useState("");
   const [uploadedType, setUploadedType] = useState<BuilderAssetType | "all">(
     "all"
@@ -268,12 +296,7 @@ export function AssetPanel(props: AssetPanelProps) {
     }>
   >([]);
   const [selectedFolder, setSelectedFolder] = useState<string>("all");
-  const [newFolderName, setNewFolderName] = useState("");
-  const [customFolders, setCustomFolders] = useState<string[]>([
-    "Pernikahan",
-    "Venue",
-    "Dekorasi",
-  ]);
+  const customFolders = ["Pernikahan", "Venue", "Dekorasi"];
 
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId);
   const filteredAssets = useMemo(() => {
@@ -281,8 +304,6 @@ export function AssetPanel(props: AssetPanelProps) {
     return assets.filter((asset) => {
       const matchesCategory =
         category === "uploaded" ||
-        (category === "images" && asset.type === "image") ||
-        (category === "videos" && asset.type === "video") ||
         (category === "fonts" && asset.type === "font");
       const matchesType =
         category !== "uploaded" ||
@@ -431,14 +452,39 @@ export function AssetPanel(props: AssetPanelProps) {
   const handleAdd = (action: string) => {
     if (action === "section") {
       onAddSection();
+    } else if (action === "nested_container") {
+      if (selectedNode?.kind === "element" && selectedNode.elementType === "container") {
+        onAddElement("container", selectedNode.parentSectionId, selectedNode.id);
+        message.success("Nested container ditambahkan ke dalam container");
+      } else {
+        onAddElement("container");
+        message.info("Container ditambahkan. Pilih container untuk menyisipkan nested container.");
+      }
     } else if (
-      ["text", "image", "video", "shape", "button", "divider", "container"].includes(
-        action
-      )
+      [
+        "heading",
+        "text",
+        "image",
+        "video",
+        "shape",
+        "button",
+        "divider",
+        "spacer",
+        "icon",
+        "container",
+      ].includes(action)
     ) {
-      onAddElement(action as ElementType);
+      if (selectedNode?.kind === "element" && selectedNode.elementType === "container") {
+        onAddElement(action as ElementType, selectedNode.parentSectionId, selectedNode.id);
+      } else {
+        onAddElement(action as ElementType);
+      }
     } else {
-      onAddWidget(action as WidgetType);
+      if (selectedNode?.kind === "element" && selectedNode.elementType === "container") {
+        onAddWidget(action as WidgetType, selectedNode.parentSectionId, selectedNode.id);
+      } else {
+        onAddWidget(action as WidgetType);
+      }
     }
   };
 
@@ -446,15 +492,25 @@ export function AssetPanel(props: AssetPanelProps) {
     key: AssetCategory;
     label: string;
     icon: React.ReactNode;
-  }[] = [
-    { key: "sections", label: "Sections", icon: <InsertRowBelowOutlined /> },
-    { key: "text", label: "Text", icon: <FontSizeOutlined /> },
-    { key: "images", label: "Media", icon: <PictureOutlined /> },
-    { key: "shapes", label: "Elements", icon: <BorderOutlined /> },
-    { key: "buttons", label: "Buttons", icon: <AppstoreOutlined /> },
-    { key: "widgets", label: "Widgets", icon: <ContainerOutlined /> },
-    { key: "fonts", label: "Brand", icon: <FileTextOutlined /> },
-  ];
+  }[] = useMemo(() => {
+    if (mode === "widgets") {
+      return [{ key: "widgets", label: "Widgets", icon: <ContainerOutlined /> }];
+    }
+    if (mode === "elements") {
+      return [
+        { key: "layout", label: "Layout", icon: <ContainerOutlined /> },
+        { key: "basic", label: "Basic Elements", icon: <FontSizeOutlined /> },
+        { key: "sections", label: "Section", icon: <InsertRowBelowOutlined /> },
+      ];
+    }
+    return [
+      { key: "layout", label: "Layout", icon: <ContainerOutlined /> },
+      { key: "basic", label: "Basic Elements", icon: <FontSizeOutlined /> },
+      { key: "widgets", label: "Widgets", icon: <ContainerOutlined /> },
+      { key: "sections", label: "Sections", icon: <InsertRowBelowOutlined /> },
+      { key: "fonts", label: "Brand", icon: <FileTextOutlined /> },
+    ];
+  }, [mode]);
 
   const addCategoryItems: TabsProps["items"] = addCategories.map((item) => ({
     key: item.key,
@@ -466,10 +522,7 @@ export function AssetPanel(props: AssetPanelProps) {
     ),
   }));
 
-  const categoryAssets =
-    category === "images"
-      ? [...categoryOptions("images"), ...categoryOptions("videos")]
-      : categoryOptions(category);
+  const categoryAssets = categoryOptions(category);
   const visibleOptions = categoryAssets.filter((option) => {
     const query = search.trim().toLowerCase();
     return (
@@ -636,7 +689,7 @@ export function AssetPanel(props: AssetPanelProps) {
 
   return (
     <div className={styles.panel}>
-      {mode === "add" && (
+      {(mode === "add" || mode === "elements") && (
         <div className={styles.categoryNavigation}>
           <Tabs
             activeKey={category}
@@ -652,24 +705,36 @@ export function AssetPanel(props: AssetPanelProps) {
       <div className={styles.assetContent}>
         <div className={styles.panelHeading}>
           <Text strong className={styles.panelTitle}>
-            {mode === "uploads" ? "Uploads" : categoryLabels[category]}
+            {mode === "uploads"
+              ? "Uploads"
+              : mode === "widgets"
+              ? "Widgets InviteU"
+              : categoryLabels[category]}
           </Text>
           <Text type="secondary" className={styles.panelDescription}>
             {mode === "uploads"
-              ? "Manage image, video and font assets."
+              ? "Kelola file gambar, video, dan custom font."
+              : mode === "widgets"
+              ? "Pilih widget interaktif untuk ditambahkan ke dalam section undangan."
               : category === "sections"
-                ? "Start with a blank invitation section."
-                : "Select an item to add it to your invitation."}
+                ? "Mulai dengan section undangan baru."
+                : "Pilih elemen untuk ditambahkan ke tata letak undangan."}
           </Text>
         </div>
 
-        {(showAssetLibrary || mode === "add") && (
+        {(showAssetLibrary || mode === "add" || mode === "elements" || mode === "widgets") && (
           <Input
             allowClear
             prefix={<SearchOutlined />}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder={showAssetLibrary ? "Search uploads" : "Search items"}
+            placeholder={
+              showAssetLibrary
+                ? "Cari uploads & media..."
+                : mode === "widgets"
+                ? "Cari widget InviteU..."
+                : "Cari elemen desain..."
+            }
             size="small"
           />
         )}
@@ -820,22 +885,21 @@ export function AssetPanel(props: AssetPanelProps) {
                   type="button"
                   className={styles.optionTile}
                   disabled={isReadOnly}
+                  draggable={!isReadOnly}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(
+                      "application/x-inviteu-element",
+                      JSON.stringify({
+                        action: asset.action,
+                        label: asset.label,
+                      })
+                    );
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
                   onClick={() => handleAdd(asset.action)}
                 >
                   <span className={styles.optionThumbnail}>
-                    {category === "text" ? (
-                      <span className={styles.typePreview}>
-                        {asset.label === "Heading" ? (
-                          <strong>Ag</strong>
-                        ) : asset.label === "Subheading" ? (
-                          <span className="text-sm font-medium">Ag</span>
-                        ) : (
-                          <span className="text-xs">Ag</span>
-                        )}
-                      </span>
-                    ) : (
-                      asset.icon
-                    )}
+                    {asset.icon}
                   </span>
                   <span className={styles.optionLabel}>{asset.label}</span>
                 </button>
@@ -858,10 +922,11 @@ export function AssetPanel(props: AssetPanelProps) {
         width={600}
       >
         {previewAsset?.type === "image" && (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={previewAsset.previewUrl}
             alt={previewAsset.name}
-            className="!max-h-[60vh] !max-w-full object-contain"
+            className="max-h-[60vh] max-w-full object-contain"
           />
         )}
         {previewAsset?.type === "video" && (

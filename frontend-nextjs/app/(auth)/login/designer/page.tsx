@@ -33,9 +33,10 @@ function DesignerLoginForm() {
     if (res.success && res.role === "designer") {
       const requestedPath = searchParams.get("callbackUrl");
       const callbackUrl =
-        requestedPath?.startsWith("/designer/") &&
+        requestedPath &&
+        (requestedPath === "/designer" || requestedPath.startsWith("/designer/")) &&
         !requestedPath.startsWith("//")
-          ? requestedPath
+          ? requestedPath === "/designer" ? "/designer/dashboard" : requestedPath
           : "/designer/dashboard";
       router.push(callbackUrl);
     } else {

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { CustomerServiceOutlined } from "@ant-design/icons";
 import { SectionProperties } from "../types";
 
 export function MusicWidget(props: SectionProperties) {
@@ -68,7 +69,7 @@ export function MusicWidget(props: SectionProperties) {
             }`}
             style={{ backgroundColor: accentColor }}
           >
-            <span className="text-sm">🎵</span>
+            <CustomerServiceOutlined className="text-sm" />
           </div>
 
           <div className="min-w-0 flex-1 text-left">

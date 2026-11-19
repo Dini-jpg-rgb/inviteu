@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   CopyOutlined,
   DeleteOutlined,
@@ -12,6 +12,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   RightOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import {
   Button,
@@ -23,9 +24,27 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { BuilderDocument, BuilderNode } from "./model";
+import { BuilderDocument, BuilderNode, BuilderSectionChild } from "./model";
 
 const { Text } = Typography;
+
+// Palette for group color badges — cycles by groupId hash
+const GROUP_COLORS = [
+  "#1677ff", // blue
+  "#7c3aed", // violet
+  "#059669", // green
+  "#d97706", // amber
+  "#dc2626", // red
+  "#0891b2", // cyan
+];
+
+function getGroupColor(groupId: string): string {
+  let hash = 0;
+  for (let i = 0; i < groupId.length; i++) {
+    hash = groupId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return GROUP_COLORS[Math.abs(hash) % GROUP_COLORS.length];
+}
 
 interface LayersPanelProps {
   document: BuilderDocument;
@@ -41,11 +60,21 @@ interface LayersPanelProps {
   onMoveToSection: (id: string, sectionId: string) => void;
   onGroupElements?: (elementIds: string[]) => void;
   onUngroupElements?: (groupId: string) => void;
+  onRemoveFromGroup?: (elementId: string) => void;
+  onAddToGroup?: (elementId: string, groupId: string) => void;
   onMoveGroupToSection?: (groupId: string, sectionId: string) => void;
   onReorderSectionChildren?: (sectionId: string, fromIndex: number, toIndex: number) => void;
   onReorderSections?: (fromIndex: number, toIndex: number) => void;
+  onMoveToContainer?: (elementId: string, containerId?: string) => void;
   onOpenSectionCatalog?: () => void;
   onOpenElementCatalog?: (targetSectionId?: string) => void;
+}
+
+interface DragInfo {
+  id: string;
+  isSection: boolean;
+  sectionId?: string;
+  index: number;
 }
 
 export function LayersPanel({
@@ -62,28 +91,73 @@ export function LayersPanel({
   onMoveToSection,
   onGroupElements,
   onUngroupElements,
+  onRemoveFromGroup,
+  onAddToGroup,
   onMoveGroupToSection,
   onReorderSectionChildren,
   onReorderSections,
+  onMoveToContainer,
   onOpenSectionCatalog,
   onOpenElementCatalog,
 }: LayersPanelProps) {
-  const [draggedNodeInfo, setDraggedNodeInfo] = useState<{
-    id: string;
-    isSection: boolean;
-    sectionId?: string;
-    index: number;
-  } | null>(null);
+  const [draggedNodeInfo, setDraggedNodeInfo] = useState<DragInfo | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
   const ignoreNextBlurRef = useRef(false);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
     () => new Set()
   );
+  const [collapsedContainers, setCollapsedContainers] = useState<Set<string>>(
+    () => new Set()
+  );
+  // Track drag-enter counter per element to avoid flickering on child elements
+  const dragEnterCounterRef = useRef<Map<string, number>>(new Map());
+
+  // Auto-scroll and auto-expand to selected node
+  useEffect(() => {
+    if (!selectedId) return;
+
+    // Smooth scroll and expand parent nodes
+    const timer = setTimeout(() => {
+      // Expand parent section if collapsed
+      const parentSec = document.sections.find(
+        (s) => s.id === selectedId || s.children.some((c) => c.id === selectedId)
+      );
+      if (parentSec) {
+        setCollapsedSections((prev) => {
+          if (!prev.has(parentSec.id)) return prev;
+          const next = new Set(prev);
+          next.delete(parentSec.id);
+          return next;
+        });
+      }
+
+      // Expand parent container if collapsed
+      const selectedChild = parentSec?.children.find((c) => c.id === selectedId);
+      if (selectedChild?.parentContainerId) {
+        setCollapsedContainers((prev) => {
+          if (!prev.has(selectedChild.parentContainerId!)) return prev;
+          const next = new Set(prev);
+          next.delete(selectedChild.parentContainerId!);
+          return next;
+        });
+      }
+
+      const el = listRef.current?.querySelector(`[data-layer-id="${selectedId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [selectedId, document.sections]);
 
   const sectionCount = document.sections.length;
-  const objectCount = document.sections.reduce(
-    (count, section) => count + 1 + section.children.length,
+  const totalElements = document.sections.reduce(
+    (count, section) => count + section.children.length,
     0
   );
 
@@ -97,22 +171,149 @@ export function LayersPanel({
     setRenamingId(null);
   };
 
+  const handleDragStart = (info: DragInfo) => {
+    setDraggedNodeInfo(info);
+    dragEnterCounterRef.current.clear();
+  };
+
+  const handleDragEnter = (id: string) => {
+    const count = (dragEnterCounterRef.current.get(id) ?? 0) + 1;
+    dragEnterCounterRef.current.set(id, count);
+    if (count === 1) setDragOverId(id);
+  };
+
+  const handleDragLeave = (id: string) => {
+    const count = Math.max(0, (dragEnterCounterRef.current.get(id) ?? 1) - 1);
+    dragEnterCounterRef.current.set(id, count);
+    if (count === 0) setDragOverId((prev) => (prev === id ? null : prev));
+  };
+
+  const handleDrop = (
+    targetId: string,
+    targetIsSection: boolean,
+    targetSectionId: string,
+    targetIndex: number
+  ) => {
+    setDragOverId(null);
+    dragEnterCounterRef.current.clear();
+
+    if (!draggedNodeInfo || draggedNodeInfo.id === targetId) return;
+
+    if (targetIsSection && draggedNodeInfo.isSection && onReorderSections) {
+      if (
+        draggedNodeInfo.index <= 0 ||
+        draggedNodeInfo.index >= sectionCount - 1 ||
+        targetIndex <= 0 ||
+        targetIndex >= sectionCount - 1
+      ) {
+        setDraggedNodeInfo(null);
+        return;
+      }
+      onReorderSections(draggedNodeInfo.index, targetIndex);
+    } else if (
+      !targetIsSection &&
+      !draggedNodeInfo.isSection &&
+      draggedNodeInfo.sectionId === targetSectionId &&
+      onReorderSectionChildren
+    ) {
+      onReorderSectionChildren(targetSectionId, draggedNodeInfo.index, targetIndex);
+    } else if (!targetIsSection && !draggedNodeInfo.isSection) {
+      // Cross-section: move to target section
+      onMoveToSection(draggedNodeInfo.id, targetSectionId);
+    } else if (targetIsSection && !draggedNodeInfo.isSection) {
+      // Drop child onto section header → move to that section
+      onMoveToSection(draggedNodeInfo.id, targetId);
+    }
+
+    setDraggedNodeInfo(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedNodeInfo(null);
+    setDragOverId(null);
+    dragEnterCounterRef.current.clear();
+  };
+
   const renderLayer = (
     node: BuilderNode,
     depth: number,
     index: number,
-    siblingCount: number
+    siblingCount: number,
+    allSectionChildren?: BuilderSectionChild[]
   ) => {
+    // If search is active, filter out nodes that don't match or have matching descendants
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    if (trimmedQuery) {
+      const selfMatches = node.name.toLowerCase().includes(trimmedQuery);
+      const childMatches =
+        node.kind === "section"
+          ? node.children.some(
+              (c) =>
+                c.name.toLowerCase().includes(trimmedQuery) ||
+                (c.kind === "element" &&
+                  c.elementType === "container" &&
+                  node.children.some(
+                    (nested) =>
+                      nested.parentContainerId === c.id &&
+                      nested.name.toLowerCase().includes(trimmedQuery)
+                  ))
+            )
+          : node.kind === "element" && node.elementType === "container"
+          ? (allSectionChildren || []).some(
+              (nested) =>
+                nested.parentContainerId === node.id &&
+                nested.name.toLowerCase().includes(trimmedQuery)
+            )
+          : false;
+
+      if (!selfMatches && !childMatches) {
+        return null;
+      }
+    }
+
     const isSection = node.kind === "section";
+    const isContainer =
+      !isSection &&
+      node.kind === "element" &&
+      node.elementType === "container";
     const isCover = isSection && index === 0;
     const isPenutup = isSection && index === sectionCount - 1 && sectionCount > 1;
     const isLockedSection = isCover || isPenutup;
+    const isDragOver = dragOverId === node.id;
 
     const movableTargets = isSection
       ? []
       : document.sections.filter(
           (section) => section.id !== node.parentSectionId
         );
+
+    // Determine group color for child elements
+    const groupColor =
+      !isSection && node.groupId ? getGroupColor(node.groupId) : undefined;
+
+    const currentSection = !isSection
+      ? document.sections.find((s) => s.id === (node as BuilderSectionChild).parentSectionId)
+      : undefined;
+    const siblingElements = currentSection
+      ? currentSection.children.filter((c) => c.id !== node.id)
+      : [];
+    const availableContainers = currentSection
+      ? currentSection.children.filter(
+          (c) =>
+            c.kind === "element" &&
+            c.elementType === "container" &&
+            c.id !== node.id &&
+            c.parentContainerId !== node.id
+        )
+      : [];
+    const ungroupedSiblings = siblingElements.filter((c) => !c.groupId);
+    const existingGroupIds = Array.from(
+      new Set(
+        siblingElements
+          .map((c) => c.groupId)
+          .filter((g): g is string => Boolean(g && g !== node.groupId))
+      )
+    );
 
     // Context menu items
     const menuItems: MenuProps["items"] = [
@@ -123,6 +324,17 @@ export function LayersPanel({
               icon: <PlusOutlined />,
               label: "Tambah Elemen ke Section Ini",
               onClick: () => onOpenElementCatalog(node.id),
+            },
+            { type: "divider" as const },
+          ]
+        : []),
+      ...(isContainer && onOpenElementCatalog
+        ? [
+            {
+              key: "add-element-to-container",
+              icon: <PlusOutlined />,
+              label: "Tambah Elemen ke Container",
+              onClick: () => onOpenElementCatalog(currentSection?.id),
             },
             { type: "divider" as const },
           ]
@@ -139,6 +351,30 @@ export function LayersPanel({
               icon: <CopyOutlined />,
               label: "Duplicate",
               onClick: () => onDuplicate(node.id),
+            },
+          ]
+        : []),
+      ...(!isSection && onMoveToContainer && (availableContainers.length > 0 || (node as BuilderSectionChild).parentContainerId)
+        ? [
+            {
+              key: "move-to-container",
+              label: "Pindahkan Container",
+              children: [
+                ...((node as BuilderSectionChild).parentContainerId
+                  ? [
+                      {
+                        key: "exit-container",
+                        label: "↑ Keluar ke Section (Root)",
+                        onClick: () => onMoveToContainer(node.id, undefined),
+                      },
+                    ]
+                  : []),
+                ...availableContainers.map((c) => ({
+                  key: `move-to-cont-${c.id}`,
+                  label: `→ ${c.name}`,
+                  onClick: () => onMoveToContainer(node.id, c.id),
+                })),
+              ],
             },
           ]
         : []),
@@ -179,12 +415,39 @@ export function LayersPanel({
                     onClick: () => onUngroupElements(node.groupId!),
                   },
                 ]
-              : onGroupElements
+              : []),
+            ...(node.groupId && onRemoveFromGroup
               ? [
                   {
-                    key: "group",
-                    label: "Group dengan Elemen Lain",
-                    onClick: () => onGroupElements([node.id]),
+                    key: "remove-from-group",
+                    label: "Keluarkan dari Grup",
+                    onClick: () => onRemoveFromGroup(node.id),
+                  },
+                ]
+              : []),
+            ...(!node.groupId && onGroupElements && ungroupedSiblings.length
+              ? [
+                  {
+                    key: "group-with",
+                    label: "Group dengan Elemen...",
+                    children: ungroupedSiblings.map((sibling) => ({
+                      key: `group-with-${sibling.id}`,
+                      label: sibling.name,
+                      onClick: () => onGroupElements([node.id, sibling.id]),
+                    })),
+                  },
+                ]
+              : []),
+            ...(!node.groupId && onAddToGroup && existingGroupIds.length
+              ? [
+                  {
+                    key: "add-to-group",
+                    label: "Gabungkan ke Grup...",
+                    children: existingGroupIds.map((gid) => ({
+                      key: `add-to-group-${gid}`,
+                      label: `Grup (${siblingElements.filter((s) => s.groupId === gid).length} elemen)`,
+                      onClick: () => onAddToGroup(node.id, gid),
+                    })),
                   },
                 ]
               : []),
@@ -192,7 +455,7 @@ export function LayersPanel({
               ? [
                   {
                     key: "move-group-to-section",
-                    label: "Pindahkan Grup ke Section",
+                    label: "Pindahkan Seluruh Grup ke Section",
                     children: movableTargets.map((section) => ({
                       key: `move-group-${section.id}`,
                       label: section.name,
@@ -228,11 +491,7 @@ export function LayersPanel({
         : []),
     ];
 
-    // Constrained reordering:
-    // Cover (index 0) cannot move.
-    // Penutup (index length-1) cannot move.
-    // Intermediate sections can move up only if index > 1 (cannot swap with Cover).
-    // Intermediate sections can move down only if index < length - 2 (cannot swap with Penutup).
+    // Constrained reordering logic
     const canMoveUp = isSection
       ? !isLockedSection && index > 1
       : index > 0;
@@ -240,16 +499,20 @@ export function LayersPanel({
       ? !isLockedSection && index < sectionCount - 2
       : index < siblingCount - 1;
 
+    const sectionId = isSection
+      ? node.id
+      : ((node as BuilderSectionChild).parentSectionId as string);
+
     return (
       <div
         key={node.id}
         draggable={!isLockedSection}
         onDragStart={(e) => {
           e.stopPropagation();
-          setDraggedNodeInfo({
+          handleDragStart({
             id: node.id,
             isSection,
-            sectionId: isSection ? undefined : node.parentSectionId,
+            sectionId: isSection ? undefined : sectionId,
             index,
           });
         }}
@@ -257,46 +520,61 @@ export function LayersPanel({
           e.preventDefault();
           e.stopPropagation();
         }}
+        onDragEnter={(e) => {
+          e.stopPropagation();
+          handleDragEnter(node.id);
+        }}
+        onDragLeave={(e) => {
+          e.stopPropagation();
+          handleDragLeave(node.id);
+        }}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (!draggedNodeInfo || draggedNodeInfo.id === node.id) return;
-
-          if (isSection && draggedNodeInfo.isSection && onReorderSections) {
-            onReorderSections(draggedNodeInfo.index, index);
-          } else if (
-            !isSection &&
-            !draggedNodeInfo.isSection &&
-            draggedNodeInfo.sectionId === node.parentSectionId &&
-            onReorderSectionChildren
-          ) {
-            onReorderSectionChildren(node.parentSectionId, draggedNodeInfo.index, index);
-          } else if (!isSection && !draggedNodeInfo.isSection && onMoveToSection) {
-            onMoveToSection(draggedNodeInfo.id, node.parentSectionId);
-          }
-          setDraggedNodeInfo(null);
+          handleDrop(node.id, isSection, sectionId, index);
         }}
+        onDragEnd={handleDragEnd}
       >
+        {/* Drop indicator line above */}
+        {isDragOver && draggedNodeInfo && draggedNodeInfo.id !== node.id && (
+          <div
+            aria-hidden
+            className="pointer-events-none h-0.5 rounded-full bg-[#1677ff] mx-2 my-0.5"
+          />
+        )}
+
         <div
+          data-layer-id={node.id}
           className={`group flex min-h-10 items-center gap-1 rounded-md border px-2 transition-colors ${
             selectedId === node.id
               ? "border-[#FCB040] bg-[#FDEBD3]"
+              : isDragOver && draggedNodeInfo?.id !== node.id
+              ? "border-[#1677ff] bg-[#e6f4ff]"
               : "border-transparent hover:border-[#EBD9BE] hover:bg-[#FFF8EE]"
           } ${node.visible ? "" : "opacity-50"}`}
-          style={{ marginLeft: depth * 14 }}
+          style={{
+            marginLeft: depth * 14,
+            ...(groupColor
+              ? { borderLeftColor: groupColor, borderLeftWidth: 2, borderLeftStyle: "solid" }
+              : {}),
+          }}
           onClick={() => onSelect(node.id)}
         >
-          {isSection ? (
+          {isSection || isContainer ? (
             <Button
               type="text"
               size="small"
               aria-label={
-                collapsedSections.has(node.id)
-                  ? "Buka section"
-                  : "Tutup section"
+                (isSection
+                  ? collapsedSections.has(node.id)
+                  : collapsedContainers.has(node.id))
+                  ? "Buka"
+                  : "Tutup"
               }
               icon={
-                collapsedSections.has(node.id) ? (
+                (isSection
+                  ? collapsedSections.has(node.id)
+                  : collapsedContainers.has(node.id)) ? (
                   <RightOutlined />
                 ) : (
                   <DownOutlined />
@@ -304,12 +582,21 @@ export function LayersPanel({
               }
               onClick={(event) => {
                 event.stopPropagation();
-                setCollapsedSections((current) => {
-                  const next = new Set(current);
-                  if (next.has(node.id)) next.delete(node.id);
-                  else next.add(node.id);
-                  return next;
-                });
+                if (isSection) {
+                  setCollapsedSections((current) => {
+                    const next = new Set(current);
+                    if (next.has(node.id)) next.delete(node.id);
+                    else next.add(node.id);
+                    return next;
+                  });
+                } else {
+                  setCollapsedContainers((current) => {
+                    const next = new Set(current);
+                    if (next.has(node.id)) next.delete(node.id);
+                    else next.add(node.id);
+                    return next;
+                  });
+                }
               }}
             />
           ) : (
@@ -374,11 +661,19 @@ export function LayersPanel({
             <Tag className="!mr-0 !px-1 !text-[9px]">Section</Tag>
           )}
           {!isSection && node.groupId && (
-            <Tag color="cyan" className="!mr-0 !px-1 !text-[9px]">
+            <Tag
+              className="!mr-0 !px-1 !text-[9px]"
+              style={{ color: groupColor, borderColor: groupColor, background: `${groupColor}18` }}
+            >
               Group
             </Tag>
           )}
-          {!isSection && (
+          {!isSection && isContainer && (
+            <Tag color="cyan" className="!mr-0 !px-1 !text-[9px]">
+              Container
+            </Tag>
+          )}
+          {!isSection && !isContainer && (
             <Tag className="!mr-0 !px-1 !text-[9px]">
               {node.kind === "widget" ? "Widget" : "Element"}
             </Tag>
@@ -434,12 +729,39 @@ export function LayersPanel({
           </Space>
         </div>
 
-        {/* Render child layers inside this section */}
+        {/* Render child layers inside this section (root elements & containers) */}
         {isSection &&
           !collapsedSections.has(node.id) &&
-          node.children.map((child, childIndex) =>
-            renderLayer(child, depth + 1, childIndex, node.children.length)
-          )}
+          node.children
+            .filter(
+              (c) =>
+                !c.parentContainerId ||
+                !node.children.some((p) => p.id === c.parentContainerId)
+            )
+            .map((child, childIndex, arr) =>
+              renderLayer(
+                child,
+                depth + 1,
+                childIndex,
+                arr.length,
+                node.children
+              )
+            )}
+
+        {/* Render child elements nested inside this container */}
+        {isContainer &&
+          !collapsedContainers.has(node.id) &&
+          (allSectionChildren || [])
+            .filter((c) => c.parentContainerId === node.id)
+            .map((child, childIndex, arr) =>
+              renderLayer(
+                child,
+                depth + 1,
+                childIndex,
+                arr.length,
+                allSectionChildren
+              )
+            )}
 
         {/* Move up / down controls for selected item */}
         {selectedId === node.id && (canMoveUp || canMoveDown) && (
@@ -473,49 +795,61 @@ export function LayersPanel({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header with Unified Section & Layer Controls */}
-      <div className="flex shrink-0 items-center justify-between border-b border-[#EBD9BE] p-3 bg-[#FFF8EE]/60">
-        <div>
-          <Text strong className="text-sm text-[#3A2313]">
-            Sections & Layers
-          </Text>
-          <Text type="secondary" className="block text-[11px]">
-            {sectionCount} section · {objectCount} objek
-          </Text>
+      <div className="flex shrink-0 flex-col gap-2 border-b border-[#EBD9BE] p-3 bg-[#FFF8EE]/60">
+        <div className="flex items-center justify-between">
+          <div>
+            <Text strong className="text-sm text-[#3A2313]">
+              Navigator &amp; Layers
+            </Text>
+            <Text type="secondary" className="block text-[11px]">
+              {sectionCount} Section · {totalElements} Elemen
+            </Text>
+          </div>
+
+          <Space size={6}>
+            {onOpenElementCatalog && (
+              <Button
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={() =>
+                  onOpenElementCatalog(
+                    selectedId && document.sections.some((s) => s.id === selectedId)
+                      ? selectedId
+                      : undefined
+                  )
+                }
+                className="!text-xs shadow-xs !border-[#EBD9BE] !text-[#765D48] hover:!border-[#FCB040]"
+              >
+                + Elemen
+              </Button>
+            )}
+            {onOpenSectionCatalog && (
+              <Button
+                type="primary"
+                size="small"
+                icon={<PlusOutlined />}
+                onClick={onOpenSectionCatalog}
+                className="!text-xs shadow-xs"
+              >
+                + Section
+              </Button>
+            )}
+          </Space>
         </div>
 
-        <Space size={6}>
-          {onOpenElementCatalog && (
-            <Button
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={() =>
-                onOpenElementCatalog(
-                  selectedId && document.sections.some((s) => s.id === selectedId)
-                    ? selectedId
-                    : undefined
-                )
-              }
-              className="!text-xs shadow-xs !border-[#EBD9BE] !text-[#765D48] hover:!border-[#FCB040]"
-            >
-              + Elemen
-            </Button>
-          )}
-          {onOpenSectionCatalog && (
-            <Button
-              type="primary"
-              size="small"
-              icon={<PlusOutlined />}
-              onClick={onOpenSectionCatalog}
-              className="!text-xs shadow-xs"
-            >
-              + Section
-            </Button>
-          )}
-        </Space>
+        {/* Search input for filtering layers */}
+        <Input
+          prefix={<SearchOutlined className="text-[#9A5A00]" />}
+          placeholder="Cari layer / elemen..."
+          size="small"
+          allowClear
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
       {/* Main Layers Tree List */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2.5">
         {document.sections.length ? (
           <div className="space-y-1">
             {document.sections.map((section, index) =>

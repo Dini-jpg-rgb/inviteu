@@ -1,4 +1,5 @@
 import React from "react";
+import { EnvironmentOutlined } from "@ant-design/icons";
 import { SectionProperties } from "../types";
 
 export function EventDetailsWidget(props: SectionProperties) {
@@ -166,10 +167,11 @@ export function EventDetailsWidget(props: SectionProperties) {
             href={mapUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center space-x-1.5 text-xs font-semibold hover:underline"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold hover:underline"
             style={{ color: accentColor }}
           >
-            <span>📍 Buka Petunjuk Arah di Google Maps</span>
+            <EnvironmentOutlined />
+            <span>Buka Petunjuk Arah di Google Maps</span>
           </a>
         </div>
       )}

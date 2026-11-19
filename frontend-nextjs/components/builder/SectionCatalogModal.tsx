@@ -5,14 +5,21 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
+  CustomerServiceOutlined,
   GiftOutlined,
   HeartOutlined,
+  InboxOutlined,
   PictureOutlined,
   PlayCircleOutlined,
   PlusOutlined,
+  TagOutlined,
   UserAddOutlined,
+  CompassOutlined,
+  FileDoneOutlined,
+  CrownOutlined,
 } from "@ant-design/icons";
-import { Badge, Button, Card, Col, Modal, Row, Tag, Typography } from "antd";
+import { Button, Card, Col, Empty, Input, Modal, Row, Tag, Tooltip, Typography } from "antd";
+import { BuilderSection } from "./model";
 
 const { Text, Title } = Typography;
 
@@ -20,15 +27,18 @@ export interface CatalogSectionTemplate {
   key: string;
   type: string;
   name: string;
-  category: string;
+  category: "Static Elements" | "Functional Widgets";
   description: string;
   icon: React.ReactNode;
   badge?: string;
+  isAddon?: boolean;
+  isSingleton?: boolean;
+  isRequired?: boolean;
   defaultHeight: number;
   defaultBgColor: string;
   defaultChildren: Array<{
-    elementType?: "text" | "image" | "video" | "shape" | "button" | "divider";
-    widgetType?: "countdown" | "rsvp" | "music" | "digital_gift";
+    elementType?: "text" | "image" | "video" | "shape" | "button" | "divider" | "container";
+    widgetType?: "countdown" | "rsvp" | "music" | "digital_gift" | "event_details" | "gallery" | "guestbook" | "maps" | "video_greeting";
     kind: "element" | "widget";
     name: string;
     position: { x: number; y: number };
@@ -38,103 +48,114 @@ export interface CatalogSectionTemplate {
 }
 
 export const ADMIN_SECTION_CATALOG: CatalogSectionTemplate[] = [
+  // ─── STATIC ELEMENTS ───────────────────────────────────────────────────────
   {
-    key: "event_details",
-    type: "event_details",
-    name: "Event Details (Akad & Resepsi)",
-    category: "Informasi Acara",
-    badge: "Populer",
-    description: "Informasi jadwal akad nikah, jam resepsi, dan peta lokasi venue acara.",
-    icon: <CalendarOutlined className="text-xl text-[#9A5A00]" />,
-    defaultHeight: 460,
+    key: "cover",
+    type: "cover",
+    name: "Cover & Hero",
+    category: "Static Elements",
+    badge: "Wajib Pertama",
+    isRequired: true,
+    isSingleton: true,
+    description: "Section pembuka utama undangan dengan judul acara, nama mempelai, dan sambutan.",
+    icon: <CrownOutlined className="text-xl text-[#9A5A00]" />,
+    defaultHeight: 520,
     defaultBgColor: "#ffffff",
     defaultChildren: [
       {
         kind: "element",
         elementType: "text",
-        name: "Judul Acara",
-        position: { x: 20, y: 30 },
-        size: { width: 340, height: 40 },
+        name: "Judul Undangan",
+        position: { x: 20, y: 35 },
+        size: { width: 340, height: 48 },
         props: {
-          text: "Waktu & Tempat Acara",
-          fontSize: 22,
+          text: "The Wedding Celebration",
+          fontSize: 24,
           fontWeight: "bold",
           alignment: "center",
           color: "#3A2313",
+          fontFamily: "Georgia, serif",
         },
       },
       {
         kind: "element",
         elementType: "text",
-        name: "Rundown Acara",
-        position: { x: 20, y: 80 },
-        size: { width: 340, height: 180 },
+        name: "Nama Mempelai",
+        position: { x: 20, y: 95 },
+        size: { width: 340, height: 50 },
         props: {
-          text: "Akad Nikah: 08.00 - 10.00 WIB\nResepsi: 11.00 - 14.00 WIB\n\nGrand Ballroom Hotel Mulia\nJl. Asia Afrika, Senayan, Jakarta",
-          fontSize: 14,
-          lineHeight: 1.6,
+          text: "MOGRAN & LAURA",
+          fontSize: 26,
+          fontWeight: "bold",
           alignment: "center",
-          color: "#765D48",
+          color: "#9A5A00",
+          fontFamily: "Georgia, serif",
         },
       },
       {
         kind: "element",
-        elementType: "button",
-        name: "Tombol Google Maps",
-        position: { x: 60, y: 280 },
-        size: { width: 260, height: 44 },
+        elementType: "image",
+        name: "Foto Hero Mempelai",
+        position: { x: 30, y: 160 },
+        size: { width: 320, height: 260 },
         props: {
-          text: "Petunjuk Arah (Google Maps)",
-          backgroundColor: "#FCB040",
-          color: "#3A2313",
-          borderRadius: 8,
+          src: "/templates/wedding/couple-main.jpg",
+          alt: "Foto Mempelai",
+          borderRadius: 16,
+          objectFit: "cover",
         },
       },
     ],
   },
   {
-    key: "countdown",
-    type: "countdown",
-    name: "Countdown Timer (Hitung Mundur)",
-    category: "Interaktif",
-    description: "Penghitung mundur hari, jam, dan menit menuju hari bahagia acara.",
-    icon: <ClockCircleOutlined className="text-xl text-[#9A5A00]" />,
-    defaultHeight: 280,
-    defaultBgColor: "#455633",
+    key: "penutup",
+    type: "penutup",
+    name: "Penutup & Ucapan",
+    category: "Static Elements",
+    badge: "Wajib Terakhir",
+    isRequired: true,
+    isSingleton: true,
+    description: "Section penutup dengan ungkapan syukur, salam hormat, dan terima kasih keluarga kedua mempelai.",
+    icon: <FileDoneOutlined className="text-xl text-[#455633]" />,
+    defaultHeight: 380,
+    defaultBgColor: "#FFF8EE",
     defaultChildren: [
       {
         kind: "element",
         elementType: "text",
-        name: "Judul Countdown",
+        name: "Judul Penutup",
         position: { x: 20, y: 30 },
-        size: { width: 340, height: 36 },
+        size: { width: 340, height: 40 },
         props: {
-          text: "Menghitung Hari Bahagia",
-          fontSize: 20,
+          text: "Terima Kasih",
+          fontSize: 24,
           fontWeight: "bold",
           alignment: "center",
-          color: "#fffcea",
+          color: "#3A2313",
         },
       },
       {
-        kind: "widget",
-        widgetType: "countdown",
-        name: "Widget Hitung Mundur",
-        position: { x: 20, y: 80 },
-        size: { width: 340, height: 120 },
+        kind: "element",
+        elementType: "text",
+        name: "Pesan Penutup",
+        position: { x: 20, y: 85 },
+        size: { width: 340, height: 160 },
         props: {
-          eventDate: "2026-12-28T09:00:00",
-          color: "#fffcea",
+          text: "Merupakan suatu kehormatan dan kebahagiaan bagi kami apabila Bapak/Ibu/Saudara/i berkenan hadir dan memberikan doa restu kepada kedua mempelai.\n\nKami yang berbahagia,\nKeluarga Besar Mogran & Laura",
+          fontSize: 13,
+          lineHeight: 1.7,
+          alignment: "center",
+          color: "#765D48",
         },
       },
     ],
   },
   {
-    key: "love_story",
-    type: "love_story",
+    key: "story",
+    type: "story",
     name: "Love Story (Kisah Cinta)",
-    category: "Cerita & Kenangan",
-    description: "Linimasa cerita perjalanan cinta dari awal perjumpaan hingga pelaminan.",
+    category: "Static Elements",
+    description: "Linimasa cerita perjalanan cinta dari awal perjumpaan hingga melangkah ke pelaminan.",
     icon: <HeartOutlined className="text-xl text-[#B84438]" />,
     defaultHeight: 480,
     defaultBgColor: "#FFF8EE",
@@ -160,7 +181,7 @@ export const ADMIN_SECTION_CATALOG: CatalogSectionTemplate[] = [
         position: { x: 20, y: 85 },
         size: { width: 340, height: 320 },
         props: {
-          text: "2021 — Pertemuan Pertama di Kampus\nSebuah sapaan sederhana menjadi awal dari kisah panjang.\n\n2024 — Mengikat Komitmen\nDi hadapan keluarga, kami memutuskan melangkah ke jenjang yang lebih serius.\n\n2026 — Menuju Pelaminan\nMemulai ibadah terindah sepanjang hidup bersama.",
+          text: "2021 — Pertemuan Pertama di Kampus\nSebuah sapaan sederhana menjadi awal dari kisah perjalanan panjang.\n\n2024 — Mengikat Komitmen\nDi hadapan keluarga besar, kami memutuskan melangkah ke jenjang yang lebih serius.\n\n2026 — Menuju Pelaminan\nMemulai ibadah terindah sepanjang hidup bersama dalam ikatan suci.",
           fontSize: 13,
           lineHeight: 1.7,
           alignment: "center",
@@ -170,138 +191,23 @@ export const ADMIN_SECTION_CATALOG: CatalogSectionTemplate[] = [
     ],
   },
   {
-    key: "gallery",
-    type: "gallery",
-    name: "Galeri Foto (Photo Gallery)",
-    category: "Media",
-    badge: "Wajib Foto",
-    description: "Tampilan galeri album foto pre-wedding dan momen kebersamaan.",
-    icon: <PictureOutlined className="text-xl text-[#9A5A00]" />,
-    defaultHeight: 440,
-    defaultBgColor: "#ffffff",
-    defaultChildren: [
-      {
-        kind: "element",
-        elementType: "text",
-        name: "Judul Galeri",
-        position: { x: 20, y: 25 },
-        size: { width: 340, height: 36 },
-        props: {
-          text: "Galeri Foto Bahagia",
-          fontSize: 20,
-          fontWeight: "bold",
-          alignment: "center",
-          color: "#3A2313",
-        },
-      },
-      {
-        kind: "element",
-        elementType: "image",
-        name: "Foto Utama Galeri",
-        position: { x: 20, y: 75 },
-        size: { width: 340, height: 260 },
-        props: {
-          src: "/templates/wedding/gallery-1.jpg",
-          alt: "Galeri Foto Pre-wedding",
-          borderRadius: 8,
-          objectFit: "cover",
-        },
-      },
-    ],
-  },
-  {
-    key: "rsvp",
-    type: "rsvp",
-    name: "RSVP (Konfirmasi Kehadiran)",
-    category: "Interaktif",
-    badge: "Penting",
-    description: "Formulir konfirmasi kehadiran tamu beserta pesan ucapan doa restu.",
-    icon: <UserAddOutlined className="text-xl text-[#267044]" />,
-    defaultHeight: 460,
-    defaultBgColor: "#ffffff",
-    defaultChildren: [
-      {
-        kind: "element",
-        elementType: "text",
-        name: "Judul RSVP",
-        position: { x: 20, y: 25 },
-        size: { width: 340, height: 36 },
-        props: {
-          text: "Konfirmasi Kehadiran (RSVP)",
-          fontSize: 20,
-          fontWeight: "bold",
-          alignment: "center",
-          color: "#3A2313",
-        },
-      },
-      {
-        kind: "widget",
-        widgetType: "rsvp",
-        name: "Form RSVP",
-        position: { x: 20, y: 75 },
-        size: { width: 340, height: 320 },
-        props: {
-          buttonText: "Kirim Konfirmasi",
-        },
-      },
-    ],
-  },
-  {
-    key: "digital_gift",
-    type: "digital_gift",
-    name: "Digital Gift (Tanda Kasih)",
-    category: "Pembayaran & Kado",
-    description: "Informasi rekening bank dan amplop digital untuk doa dan tanda kasih.",
-    icon: <GiftOutlined className="text-xl text-[#9A5A00]" />,
-    defaultHeight: 380,
-    defaultBgColor: "rgba(255, 255, 255, 0.9)",
-    defaultChildren: [
-      {
-        kind: "element",
-        elementType: "text",
-        name: "Judul Digital Gift",
-        position: { x: 20, y: 25 },
-        size: { width: 340, height: 36 },
-        props: {
-          text: "Tanda Kasih (Digital Gift)",
-          fontSize: 20,
-          fontWeight: "bold",
-          alignment: "center",
-          color: "#3A2313",
-        },
-      },
-      {
-        kind: "widget",
-        widgetType: "digital_gift",
-        name: "Widget Kado Digital",
-        position: { x: 20, y: 75 },
-        size: { width: 340, height: 240 },
-        props: {
-          bankName: "BCA",
-          accountNumber: "1234 5678 90",
-          accountHolder: "InviteU Couple",
-        },
-      },
-    ],
-  },
-  {
     key: "dresscode",
     type: "dresscode",
-    name: "Dresscode & Panduan Acara",
-    category: "Informasi Acara",
-    description: "Panduan busana tamu, warna tema acara, dan aturan protokol kesehatan.",
+    name: "Dress Code & Panduan",
+    category: "Static Elements",
+    description: "Panduan etika pakaian tamu, tema warna acara, dan aturan busana pernikahan.",
     icon: <CheckCircleOutlined className="text-xl text-[#9A5A00]" />,
     defaultHeight: 320,
-    defaultBgColor: "#FFF8EE",
+    defaultBgColor: "#ffffff",
     defaultChildren: [
       {
         kind: "element",
         elementType: "text",
-        name: "Judul Dresscode",
+        name: "Judul Dress Code",
         position: { x: 20, y: 25 },
         size: { width: 340, height: 36 },
         props: {
-          text: "Dresscode Acara",
+          text: "Dress Code Acara",
           fontSize: 20,
           fontWeight: "bold",
           alignment: "center",
@@ -315,7 +221,7 @@ export const ADMIN_SECTION_CATALOG: CatalogSectionTemplate[] = [
         position: { x: 20, y: 75 },
         size: { width: 340, height: 160 },
         props: {
-          text: "Busana: Pakaian Formal / Batik / Earth Tone\n\nUntuk menjaga keindahan suasana pernikahan kami, para tamu disarankan mengenakan pakaian bernuansa Sage Green, Cream, atau Cokelat.",
+          text: "Busana: Pakaian Formal / Batik / Earth Tone\n\nUntuk menjaga keindahan suasana acara, para tamu disarankan mengenakan busana bernuansa Sage Green, Cream, atau Cokelat Elegan.",
           fontSize: 13,
           lineHeight: 1.6,
           alignment: "center",
@@ -325,24 +231,24 @@ export const ADMIN_SECTION_CATALOG: CatalogSectionTemplate[] = [
     ],
   },
   {
-    key: "video_greeting",
-    type: "video_greeting",
-    name: "Video Greeting & Streaming",
-    category: "Media",
-    description: "Pemutar video pre-wedding atau siaran langsung (live stream) prosesi akad.",
-    icon: <PlayCircleOutlined className="text-xl text-[#B84438]" />,
-    defaultHeight: 360,
-    defaultBgColor: "#ffffff",
+    key: "wedding_hashtag",
+    type: "wedding_hashtag",
+    name: "Wedding Hashtag",
+    category: "Static Elements",
+    description: "Tagar pernikahan resmi untuk dokumentasi foto dan video tamu di Instagram & TikTok.",
+    icon: <TagOutlined className="text-xl text-[#9A5A00]" />,
+    defaultHeight: 260,
+    defaultBgColor: "#FAF7F2",
     defaultChildren: [
       {
         kind: "element",
         elementType: "text",
-        name: "Judul Video",
+        name: "Judul Hashtag",
         position: { x: 20, y: 25 },
         size: { width: 340, height: 36 },
         props: {
-          text: "Live Streaming & Video Momen",
-          fontSize: 20,
+          text: "Abadikan Momen Anda",
+          fontSize: 18,
           fontWeight: "bold",
           alignment: "center",
           color: "#3A2313",
@@ -350,14 +256,275 @@ export const ADMIN_SECTION_CATALOG: CatalogSectionTemplate[] = [
       },
       {
         kind: "element",
-        elementType: "video",
-        name: "Video Pemutar",
+        elementType: "text",
+        name: "Teks Hashtag Resmi",
         position: { x: 20, y: 75 },
-        size: { width: 340, height: 200 },
+        size: { width: 340, height: 50 },
         props: {
+          text: "#MogranLauraWedding",
+          fontSize: 24,
+          fontWeight: "bold",
+          alignment: "center",
+          color: "#9A5A00",
+        },
+      },
+      {
+        kind: "element",
+        elementType: "text",
+        name: "Keterangan Hashtag",
+        position: { x: 20, y: 135 },
+        size: { width: 340, height: 60 },
+        props: {
+          text: "Gunakan tagar ini saat mengunggah foto dan video momen pernikahan kami di media sosial.",
+          fontSize: 12,
+          lineHeight: 1.5,
+          alignment: "center",
+          color: "#765D48",
+        },
+      },
+    ],
+  },
+
+  // ─── FUNCTIONAL WIDGETS ────────────────────────────────────────────────────
+  {
+    key: "event_details",
+    type: "event_details",
+    name: "Event Details (Akad & Resepsi)",
+    category: "Functional Widgets",
+    badge: "Populer",
+    description: "Informasi jadwal akad nikah, jam resepsi, dan peta lokasi venue acara.",
+    icon: <CalendarOutlined className="text-xl text-[#9A5A00]" />,
+    defaultHeight: 460,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "event_details",
+        name: "Widget Detail Acara",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 260 },
+        props: {
+          title: "Waktu & Tempat Acara",
+          badge: "Akad & Resepsi",
+          dateText: "Senin, 28 Desember 2026",
+          timeText: "Akad: 08.00 WIB · Resepsi: 11.00 WIB",
+          placeName: "Grand Ballroom Hotel Mulia",
+          address: "Jl. Asia Afrika, Senayan, Jakarta Pusat",
+          mapUrl: "https://maps.google.com",
+        },
+      },
+    ],
+  },
+  {
+    key: "gallery",
+    type: "gallery",
+    name: "Galeri Foto (Photo Gallery)",
+    category: "Functional Widgets",
+    badge: "Multi Layout",
+    description: "Koleksi album foto pre-wedding dengan tata letak grid, carousel, atau masonry.",
+    icon: <PictureOutlined className="text-xl text-[#FCB040]" />,
+    defaultHeight: 440,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "gallery",
+        name: "Widget Galeri Foto",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 320 },
+        props: {
+          title: "Galeri Foto Bahagia",
+          galleryLayout: "grid-2",
+          columns: 2,
+          imageCount: 4,
+          aspectRatio: "1/1",
+          borderRadius: 8,
+        },
+      },
+    ],
+  },
+  {
+    key: "countdown",
+    type: "countdown",
+    name: "Countdown Timer (Hitung Mundur)",
+    category: "Functional Widgets",
+    description: "Penghitung mundur hari, jam, dan menit menuju hari bahagia acara.",
+    icon: <ClockCircleOutlined className="text-xl text-[#9A5A00]" />,
+    defaultHeight: 280,
+    defaultBgColor: "#455633",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "countdown",
+        name: "Widget Hitung Mundur",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 180 },
+        props: {
+          title: "Menghitung Hari Bahagia",
+          eventDate: "2026-12-28T09:00:00",
+          color: "#fffcea",
+        },
+      },
+    ],
+  },
+  {
+    key: "music",
+    type: "music",
+    name: "Background Music (BGM)",
+    category: "Functional Widgets",
+    badge: "Maksimal 1",
+    isSingleton: true,
+    description: "Pemutar musik latar otomatis dengan kontrol play/pause floating.",
+    icon: <CustomerServiceOutlined className="text-xl text-[#5C3500]" />,
+    defaultHeight: 240,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "music",
+        name: "Pemutar Musik",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 140 },
+        props: {
+          title: "Musik Latar Pernikahan",
+          songTitle: "A Thousand Years",
+          artistName: "Christina Perri",
+          audioUrl: "",
+        },
+      },
+    ],
+  },
+  {
+    key: "rsvp",
+    type: "rsvp",
+    name: "RSVP (Konfirmasi Kehadiran)",
+    category: "Functional Widgets",
+    badge: "Maksimal 1",
+    isSingleton: true,
+    description: "Formulir interaktif tamu untuk mengirim konfirmasi kehadiran dan ucapan doa.",
+    icon: <UserAddOutlined className="text-xl text-[#267044]" />,
+    defaultHeight: 460,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "rsvp",
+        name: "Form RSVP",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 340 },
+        props: {
+          title: "Konfirmasi Kehadiran (RSVP)",
+          buttonLabel: "Kirim Konfirmasi",
+        },
+      },
+    ],
+  },
+  {
+    key: "guestbook",
+    type: "guestbook",
+    name: "Guestbook (Buku Tamu Digital)",
+    category: "Functional Widgets",
+    badge: "Maksimal 1",
+    isSingleton: true,
+    description: "Buku tamu digital interaktif untuk mencatat doa dan ucapan selamat dari para tamu.",
+    icon: <InboxOutlined className="text-xl text-[#9A5A00]" />,
+    defaultHeight: 460,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "guestbook",
+        name: "Buku Tamu Digital",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 320 },
+        props: {
+          title: "Buku Tamu & Doa Restu",
+          subtitle: "Tuliskan ucapan dan doa terbaik Anda untuk kedua mempelai",
+          buttonLabel: "Kirim Pesan",
+          showCount: true,
+        },
+      },
+    ],
+  },
+  {
+    key: "digital_gift",
+    type: "digital_gift",
+    name: "Digital Gift (Tanda Kasih)",
+    category: "Functional Widgets",
+    description: "Informasi rekening bank dan amplop digital untuk tanda kasih dan kado pernikahan.",
+    icon: <GiftOutlined className="text-xl text-[#9A5A00]" />,
+    defaultHeight: 380,
+    defaultBgColor: "rgba(255, 255, 255, 0.95)",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "digital_gift",
+        name: "Widget Kado Digital",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 260 },
+        props: {
+          title: "Tanda Kasih (Digital Gift)",
+          subtitle: "Doa restu Anda adalah karunia terindah bagi kami. Bagi yang berkenan memberikan tanda kasih:",
+          bankName: "BCA",
+          accountNumber: "1234 5678 90",
+          accountHolder: "Mogran & Laura",
+          showCopyButton: true,
+        },
+      },
+    ],
+  },
+  {
+    key: "video_greeting",
+    type: "video_greeting",
+    name: "Video Greeting (Add-on)",
+    category: "Functional Widgets",
+    badge: "Add-on",
+    isAddon: true,
+    description: "Pemutar video ucapan pre-wedding atau pesan bahagia kedua mempelai.",
+    icon: <PlayCircleOutlined className="text-xl text-[#B84438]" />,
+    defaultHeight: 380,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "video_greeting",
+        name: "Video Greeting",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 260 },
+        props: {
+          title: "Video Momen Bahagia",
+          badge: "Add-on",
           src: "",
           poster: "/templates/wedding/venue.jpg",
-          borderRadius: 8,
+          aspectRatio: "16/9",
+          controls: true,
+        },
+      },
+    ],
+  },
+  {
+    key: "maps",
+    type: "maps",
+    name: "Location & Peta Google Maps",
+    category: "Functional Widgets",
+    description: "Peta lokasi venue terintegrasi dengan tombol navigasi petunjuk arah Google Maps.",
+    icon: <CompassOutlined className="text-xl text-[#0369a1]" />,
+    defaultHeight: 360,
+    defaultBgColor: "#ffffff",
+    defaultChildren: [
+      {
+        kind: "widget",
+        widgetType: "maps",
+        name: "Lokasi & Peta",
+        position: { x: 20, y: 30 },
+        size: { width: 340, height: 260 },
+        props: {
+          title: "Lokasi Acara",
+          placeName: "Grand Ballroom Hotel Mulia",
+          address: "Jl. Asia Afrika, Senayan, Jakarta Pusat",
+          mapUrl: "https://maps.google.com",
+          buttonLabel: "Buka Petunjuk Arah (Google Maps)",
+          showMapEmbed: true,
         },
       },
     ],
@@ -368,28 +535,49 @@ interface SectionCatalogModalProps {
   open: boolean;
   onClose: () => void;
   onSelectSection: (section: CatalogSectionTemplate) => void;
+  existingSections?: BuilderSection[];
 }
 
 export function SectionCatalogModal({
   open,
   onClose,
   onSelectSection,
+  existingSections = [],
 }: SectionCatalogModalProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const categories = [
     { key: "all", label: "Semua Section" },
-    { key: "Informasi Acara", label: "Informasi Acara" },
-    { key: "Interaktif", label: "Interaktif" },
-    { key: "Cerita & Kenangan", label: "Cerita & Kenangan" },
-    { key: "Media", label: "Media & Foto" },
-    { key: "Pembayaran & Kado", label: "Kado & Hadiah" },
+    { key: "Static Elements", label: "Static Elements" },
+    { key: "Functional Widgets", label: "Functional Widgets" },
   ];
 
-  const filteredCatalog =
-    selectedCategory === "all"
-      ? ADMIN_SECTION_CATALOG
-      : ADMIN_SECTION_CATALOG.filter((s) => s.category === selectedCategory);
+  // Singleton and Cover/Penutup checks
+  const hasCover = existingSections.some(
+    (s) => s.id === "section-cover" || s.name.toLowerCase().includes("cover")
+  );
+  const hasPenutup = existingSections.some(
+    (s) => s.id === "section-penutup" || s.name.toLowerCase().includes("penutup")
+  );
+  const existingWidgetTypes = new Set<string>();
+  existingSections.forEach((s) => {
+    s.children.forEach((c) => {
+      if (c.kind === "widget" && c.widgetType) {
+        existingWidgetTypes.add(c.widgetType);
+      }
+    });
+  });
+
+  const filteredCatalog = ADMIN_SECTION_CATALOG.filter((item) => {
+    const matchesCategory =
+      selectedCategory === "all" || item.category === selectedCategory;
+    const matchesQuery =
+      !searchQuery.trim() ||
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesQuery;
+  });
 
   return (
     <Modal
@@ -398,10 +586,10 @@ export function SectionCatalogModal({
       title={
         <div>
           <Title level={4} className="!mb-0 text-[#3A2313]">
-            Katalog Section Admin InviteU
+            Katalog Section &amp; Widget Admin
           </Title>
           <Text type="secondary" className="text-xs">
-            Pilih section template siap pakai untuk ditambahkan di antara Cover dan Penutup.
+            Pilih section template siap pakai dari katalog Admin untuk ditambahkan ke canvas.
           </Text>
         </div>
       }
@@ -409,76 +597,143 @@ export function SectionCatalogModal({
       footer={null}
       styles={{ body: { padding: "16px 20px" } }}
     >
-      {/* Category Filter Pills */}
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {categories.map((c) => (
-          <Button
-            key={c.key}
-            size="small"
-            type={selectedCategory === c.key ? "primary" : "default"}
-            className={
-              selectedCategory === c.key
-                ? ""
-                : "!border-[#EBD9BE] !text-[#765D48] hover:!border-[#FCB040]"
-            }
-            onClick={() => setSelectedCategory(c.key)}
-          >
-            {c.label}
-          </Button>
-        ))}
+      {/* Category Filter Pills & Search */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1.5">
+          {categories.map((c) => (
+            <Button
+              key={c.key}
+              size="small"
+              type={selectedCategory === c.key ? "primary" : "default"}
+              className={
+                selectedCategory === c.key
+                  ? ""
+                  : "!border-[#EBD9BE] !text-[#765D48] hover:!border-[#FCB040]"
+              }
+              onClick={() => setSelectedCategory(c.key)}
+            >
+              {c.label}
+            </Button>
+          ))}
+        </div>
+        <Input.Search
+          size="small"
+          placeholder="Cari section..."
+          className="w-48"
+          allowClear
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
 
       {/* Grid of Sections */}
       <div className="max-h-[460px] overflow-y-auto pr-1">
-        <Row gutter={[12, 12]}>
-          {filteredCatalog.map((item) => (
-            <Col xs={24} sm={12} key={item.key}>
-              <Card
-                hoverable
-                className="h-full border-[#EBD9BE] transition-all hover:border-[#FCB040]"
-                styles={{ body: { padding: 14 } }}
-                onClick={() => {
-                  onSelectSection(item);
-                  onClose();
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#FFF8EE] border border-[#EBD9BE]">
-                    {item.icon}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <Text strong className="truncate text-sm text-[#3A2313]">
-                        {item.name}
-                      </Text>
-                      {item.badge && (
-                        <Tag color="gold" className="!mr-0 !text-[10px]">
-                          {item.badge}
-                        </Tag>
-                      )}
+        {filteredCatalog.length === 0 ? (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Tidak ada section yang sesuai dengan filter."
+            className="my-8"
+          />
+        ) : (
+          <Row gutter={[12, 12]}>
+            {filteredCatalog.map((item) => {
+              // Check availability / singleton restrictions
+              const isCoverDisabled = item.key === "cover" && hasCover;
+              const isPenutupDisabled = item.key === "penutup" && hasPenutup;
+              const isSingletonDisabled =
+                item.isSingleton &&
+                (item.key === "rsvp" || item.key === "music" || item.key === "guestbook") &&
+                existingWidgetTypes.has(item.key);
+
+              const isDisabled =
+                isCoverDisabled || isPenutupDisabled || isSingletonDisabled;
+
+              let disabledReason = "";
+              if (isCoverDisabled) disabledReason = "Cover sudah ada di posisi awal";
+              else if (isPenutupDisabled) disabledReason = "Penutup sudah ada di posisi akhir";
+              else if (isSingletonDisabled) disabledReason = "Maksimal 1 widget ini dalam undangan";
+
+              return (
+                <Col xs={24} sm={12} key={item.key}>
+                  <Card
+                    hoverable={!isDisabled}
+                    className={`h-full border-[#EBD9BE] transition-all ${
+                      isDisabled
+                        ? "opacity-60 bg-[#f9f8f6] cursor-not-allowed"
+                        : "hover:border-[#FCB040]"
+                    }`}
+                    styles={{ body: { padding: 14 } }}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        onSelectSection(item);
+                        onClose();
+                      }
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Consistent Thumbnail */}
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#FFF8EE] border border-[#EBD9BE] shadow-xs">
+                        {item.icon}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <Text strong className="truncate text-sm text-[#3A2313]">
+                            {item.name}
+                          </Text>
+                          {item.badge && (
+                            <Tag
+                              color={
+                                item.isAddon
+                                  ? "purple"
+                                  : item.isRequired
+                                    ? "orange"
+                                    : "gold"
+                              }
+                              className="!mr-0 !text-[10px]"
+                            >
+                              {item.badge}
+                            </Tag>
+                          )}
+                        </div>
+
+                        <Text
+                          type="secondary"
+                          className="mt-1 block line-clamp-2 text-xs leading-relaxed text-[#765D48]"
+                        >
+                          {item.description}
+                        </Text>
+
+                        <div className="mt-3 flex items-center justify-between">
+                          <Tag className="!mr-0 !text-[10px] text-[#765D48]">
+                            {item.category}
+                          </Tag>
+
+                          {isDisabled ? (
+                            <Tooltip title={disabledReason}>
+                              <Text type="secondary" className="text-[11px] italic">
+                                {disabledReason}
+                              </Text>
+                            </Tooltip>
+                          ) : (
+                            <Button
+                              size="small"
+                              type="link"
+                              icon={<PlusOutlined />}
+                              className="!px-0 !text-xs !text-[#9A5A00]"
+                            >
+                              Tambah
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <Text type="secondary" className="mt-1 block line-clamp-2 text-xs leading-relaxed text-[#765D48]">
-                      {item.description}
-                    </Text>
-                    <div className="mt-3 flex items-center justify-between">
-                      <Tag className="!mr-0 !text-[10px] text-[#765D48]">
-                        {item.category}
-                      </Tag>
-                      <Button
-                        size="small"
-                        type="link"
-                        icon={<PlusOutlined />}
-                        className="!px-0 !text-xs !text-[#9A5A00]"
-                      >
-                        Tambah
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        )}
       </div>
     </Modal>
   );

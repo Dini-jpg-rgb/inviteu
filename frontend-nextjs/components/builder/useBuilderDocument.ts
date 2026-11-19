@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import {
+  BuilderDevice,
   BuilderDocument,
   BuilderNode,
   BuilderSection,
@@ -54,7 +55,9 @@ function removeNode(
     .filter((section) => section.id !== id)
     .map((section) => ({
       ...section,
-      children: section.children.filter((child) => child.id !== id),
+      children: section.children.filter(
+        (child) => child.id !== id && child.parentContainerId !== id
+      ),
     }));
 }
 
@@ -130,30 +133,27 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
   );
 
   const addElement = useCallback(
-    (type: ElementType, sectionId?: string) => {
+    (type: ElementType, sectionId?: string, parentContainerId?: string) => {
       const currentSections = document.sections;
       const targetExists =
         sectionId !== undefined &&
         currentSections.some((section) => section.id === sectionId);
-      const newSection = targetExists
-        ? undefined
-        : createBuilderSection(currentSections.length);
-      const targetId = targetExists ? sectionId : newSection?.id;
+      if (!targetExists) {
+        return "";
+      }
+      const targetId = sectionId;
       const target = currentSections.find((section) => section.id === targetId);
       const element = createBuilderElement(
         type,
         target?.children.length ?? 0,
         targetId
       );
+      if (parentContainerId) {
+        element.parentContainerId = parentContainerId;
+      }
       commit((current) => {
-        const sections = newSection
-          ? [
-              ...current.sections,
-              { ...newSection, name: `Section ${current.sections.length + 1}` },
-            ]
-          : current.sections;
         return {
-          sections: sections.map((section) =>
+          sections: current.sections.map((section) =>
             section.id === targetId
               ? {
                   ...section,
@@ -162,6 +162,7 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
                     {
                       ...element,
                       parentSectionId: section.id,
+                      parentContainerId: parentContainerId || element.parentContainerId,
                       position: { ...element.position },
                       name: `${element.name.replace(/ \d+$/, "")} ${section.children.length + 1}`,
                     },
@@ -177,30 +178,27 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
   );
 
   const addWidget = useCallback(
-    (type: WidgetType, sectionId?: string) => {
+    (type: WidgetType, sectionId?: string, parentContainerId?: string) => {
       const currentSections = document.sections;
       const targetExists =
         sectionId !== undefined &&
         currentSections.some((section) => section.id === sectionId);
-      const newSection = targetExists
-        ? undefined
-        : createBuilderSection(currentSections.length);
-      const targetId = targetExists ? sectionId : newSection?.id;
+      if (!targetExists) {
+        return "";
+      }
+      const targetId = sectionId;
       const target = currentSections.find((section) => section.id === targetId);
       const widget = createBuilderWidget(
         type,
         target?.children.length ?? 0,
         targetId
       );
+      if (parentContainerId) {
+        widget.parentContainerId = parentContainerId;
+      }
       commit((current) => {
-        const sections = newSection
-          ? [
-              ...current.sections,
-              { ...newSection, name: `Section ${current.sections.length + 1}` },
-            ]
-          : current.sections;
         return {
-          sections: sections.map((section) =>
+          sections: current.sections.map((section) =>
             section.id === targetId
               ? {
                   ...section,
@@ -209,6 +207,7 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
                     {
                       ...widget,
                       parentSectionId: section.id,
+                      parentContainerId: parentContainerId || widget.parentContainerId,
                       position: { ...widget.position },
                       name: `${widget.name.replace(/ \d+$/, "")} ${section.children.length + 1}`,
                     },
@@ -261,13 +260,26 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
       );
       if (!sectionSource && !childSource) return "";
 
-      // Cegah duplikasi fungsi identik seperti RSVP dan Musik
+      // Cegah duplikasi fungsi identik seperti RSVP, Musik, dan Guestbook
       if (
         childSource &&
         childSource.kind === "widget" &&
-        (childSource.widgetType === "rsvp" || childSource.widgetType === "music")
+        (childSource.widgetType === "rsvp" ||
+          childSource.widgetType === "music" ||
+          childSource.widgetType === "guestbook")
       ) {
         return "";
+      }
+
+      // Cegah duplikasi section Cover (pertama) dan Penutup (terakhir)
+      if (sectionSource) {
+        const sectionIdx = document.sections.findIndex((s) => s.id === id);
+        if (
+          sectionIdx === 0 ||
+          sectionIdx === document.sections.length - 1
+        ) {
+          return "";
+        }
       }
 
       const duplicateId = createBuilderId(
@@ -282,15 +294,25 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
             size: { ...sectionSource.size },
             responsive: { ...sectionSource.responsive },
             props: { ...sectionSource.props },
-            children: sectionSource.children.map((child) => ({
-              ...child,
-              id: createBuilderId(child.kind),
-              parentSectionId: duplicateId,
-              position: { ...child.position },
-              size: { ...child.size },
-              responsive: { ...child.responsive },
-              props: { ...child.props },
-            })),
+            children: sectionSource.children
+              .filter(
+                (child) =>
+                  !(
+                    child.kind === "widget" &&
+                    (child.widgetType === "rsvp" ||
+                      child.widgetType === "music" ||
+                      child.widgetType === "guestbook")
+                  )
+              )
+              .map((child) => ({
+                ...child,
+                id: createBuilderId(child.kind),
+                parentSectionId: duplicateId,
+                position: { ...child.position },
+                size: { ...child.size },
+                responsive: { ...child.responsive },
+                props: { ...child.props },
+              })),
           }
         : undefined;
       const duplicateChild = childSource
@@ -298,12 +320,41 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
             ...childSource,
             id: duplicateId,
             name: `${childSource.name} copy`,
-            position: { ...childSource.position },
+            position: {
+              x: childSource.position.x + 16,
+              y: childSource.position.y + 16,
+            },
             size: { ...childSource.size },
             responsive: { ...childSource.responsive },
             props: { ...childSource.props },
           }
         : undefined;
+
+      // Duplicate container's nested children if childSource is a container
+      const nestedDuplicates: BuilderSectionChild[] = [];
+      if (
+        childSource &&
+        childSource.kind === "element" &&
+        childSource.elementType === "container"
+      ) {
+        const nestedChildren =
+          parentSource?.children.filter(
+            (c) => c.parentContainerId === childSource.id
+          ) || [];
+        nestedChildren.forEach((item) => {
+          nestedDuplicates.push({
+            ...item,
+            id: createBuilderId(item.kind),
+            parentSectionId: duplicateChild?.parentSectionId ?? parentSource?.id ?? "",
+            parentContainerId: duplicateId,
+            position: { ...item.position },
+            size: { ...item.size },
+            responsive: { ...item.responsive },
+            props: { ...item.props },
+          });
+        });
+      }
+
       commit((current) => {
         const sectionIndex = current.sections.findIndex(
           (section) => section.id === id
@@ -331,7 +382,7 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
             if (section.id !== parent.id) return section;
             const index = section.children.findIndex((child) => child.id === id);
             const children = [...section.children];
-            children.splice(index + 1, 0, duplicateChild);
+            children.splice(index + 1, 0, duplicateChild, ...nestedDuplicates);
             return { ...section, children };
           }),
         };
@@ -430,10 +481,12 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
       );
       if (!childSource) return "";
 
-      // Cegah duplikasi fungsi identik seperti RSVP dan Musik
+      // Cegah duplikasi fungsi identik seperti RSVP, Musik, dan Guestbook
       if (
         childSource.kind === "widget" &&
-        (childSource.widgetType === "rsvp" || childSource.widgetType === "music")
+        (childSource.widgetType === "rsvp" ||
+          childSource.widgetType === "music" ||
+          childSource.widgetType === "guestbook")
       ) {
         return "";
       }
@@ -493,6 +546,129 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
     [commit]
   );
 
+  const updatePosition = useCallback(
+    (
+      id: string,
+      position: { x?: number; y?: number },
+      device: BuilderDevice
+    ) => {
+      commit((current) => {
+        const isDesktop = device === "desktop";
+
+        // If updating a section
+        const isSection = current.sections.some((s) => s.id === id);
+        if (isSection) {
+          return {
+            sections: updateNode(current.sections, id, (node) => {
+              if (isDesktop) {
+                return { ...node, position: { ...node.position, ...position } };
+              }
+              const override = node.responsive?.[device] ?? {};
+              return {
+                ...node,
+                responsive: {
+                  ...node.responsive,
+                  [device]: {
+                    ...override,
+                    position: { ...(override.position ?? {}), ...position },
+                  },
+                },
+              };
+            }),
+          };
+        }
+
+        // Target is an element or widget inside a section
+        let parentSec: BuilderSection | undefined;
+        let targetChild: BuilderSectionChild | undefined;
+
+        for (const sec of current.sections) {
+          const found = sec.children.find((c) => c.id === id);
+          if (found) {
+            parentSec = sec;
+            targetChild = found;
+            break;
+          }
+        }
+
+        if (!parentSec || !targetChild) return current;
+
+        const curX = isDesktop
+          ? targetChild.position.x
+          : (targetChild.responsive?.[device]?.position?.x ?? targetChild.position.x);
+        const curY = isDesktop
+          ? targetChild.position.y
+          : (targetChild.responsive?.[device]?.position?.y ?? targetChild.position.y);
+
+        const newX = position.x !== undefined ? position.x : curX;
+        const newY = position.y !== undefined ? position.y : curY;
+        const dx = newX - curX;
+        const dy = newY - curY;
+
+        const groupId = targetChild.groupId;
+
+        return {
+          sections: current.sections.map((sec) => {
+            if (sec.id !== parentSec!.id) return sec;
+            return {
+              ...sec,
+              children: sec.children.map((child) => {
+                const shouldMove = groupId
+                  ? child.groupId === groupId
+                  : child.id === id;
+                if (!shouldMove) return child;
+
+                if (isDesktop) {
+                  const targetX =
+                    child.id === id ? newX : child.position.x + dx;
+                  const targetY =
+                    child.id === id ? newY : child.position.y + dy;
+                  return {
+                    ...child,
+                    position: { x: targetX, y: targetY },
+                  };
+                } else {
+                  const curOverride = child.responsive?.[device] ?? {};
+                  const childX =
+                    curOverride.position?.x ?? child.position.x;
+                  const childY =
+                    curOverride.position?.y ?? child.position.y;
+                  const targetX =
+                    child.id === id ? newX : childX + dx;
+                  const targetY =
+                    child.id === id ? newY : childY + dy;
+                  return {
+                    ...child,
+                    responsive: {
+                      ...child.responsive,
+                      [device]: {
+                        ...curOverride,
+                        position: { x: targetX, y: targetY },
+                      },
+                    },
+                  };
+                }
+              }),
+            };
+          }),
+        };
+      });
+    },
+    [commit]
+  );
+
+  const setElementContainer = useCallback(
+    (elementId: string, parentContainerId?: string) => {
+      commit((current) => ({
+        sections: updateNode(current.sections, elementId, (node) => ({
+          ...node,
+          parentContainerId,
+        })),
+      }));
+    },
+    [commit]
+  );
+
   const groupElements = useCallback(
     (elementIds: string[]) => {
       if (!elementIds.length) return "";
@@ -506,6 +682,34 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
         })),
       }));
       return groupId;
+    },
+    [commit]
+  );
+
+  const addToGroup = useCallback(
+    (elementId: string, groupId: string) => {
+      commit((current) => ({
+        sections: current.sections.map((section) => ({
+          ...section,
+          children: section.children.map((child) =>
+            child.id === elementId ? { ...child, groupId } : child
+          ),
+        })),
+      }));
+    },
+    [commit]
+  );
+
+  const removeFromGroup = useCallback(
+    (elementId: string) => {
+      commit((current) => ({
+        sections: current.sections.map((section) => ({
+          ...section,
+          children: section.children.map((child) =>
+            child.id === elementId ? { ...child, groupId: undefined } : child
+          ),
+        })),
+      }));
     },
     [commit]
   );
@@ -647,10 +851,14 @@ export function useBuilderDocument(initialDocument: BuilderDocument) {
     duplicateObjectToSection,
     moveObject,
     moveObjectToSection,
+    setElementContainer,
     toggleLock,
     toggleVisibility,
+    updatePosition,
     groupElements,
     ungroupElements,
+    addToGroup,
+    removeFromGroup,
     moveGroupToSection,
     reorderSectionChildren,
     reorderSections,

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AppstoreOutlined,
+  BranchesOutlined,
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
@@ -15,6 +16,7 @@ import {
   PlusOutlined,
   SendOutlined,
   UnorderedListOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import {
   App as AntdApp,
@@ -31,6 +33,7 @@ import {
   Select,
   Space,
   Table,
+  Tag,
   Typography,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -41,6 +44,10 @@ import {
   useDesignerTemplates,
 } from "../DesignerTemplatesContext";
 import { DesignerStatusTag } from "../components/DesignerStatusTag";
+import { ImportJSONModal } from "@/components/builder/ImportJSONModal";
+import { ExternalDesignImportModal } from "@/components/builder/ExternalDesignImportModal";
+import { getAllGlobalThemePresets } from "@/lib/theme-system";
+import { InviteUTemplateJSON } from "@/lib/template-json";
 import styles from "../../designer-workspace.module.css";
 
 const { Text, Title } = Typography;
@@ -53,6 +60,7 @@ type StatusFilter =
   | "approved"
   | "rejected"
   | "revision";
+type TierFilter = "all" | "basic" | "medium" | "pro";
 type SortOption =
   | "created_desc"
   | "updated_desc"
@@ -91,6 +99,7 @@ function getActionItems(
   template: LocalDesignerTemplate,
   callbacks: {
     onDuplicate: (template: LocalDesignerTemplate) => void;
+    onRename: (template: LocalDesignerTemplate) => void;
     onCreateRevision: (template: LocalDesignerTemplate) => void;
     onSubmit: (template: LocalDesignerTemplate) => void;
     onDelete: (template: LocalDesignerTemplate) => void;
@@ -127,6 +136,12 @@ function getActionItems(
         ]
       : []),
     {
+      key: "rename",
+      icon: <FormOutlined />,
+      label: "Ganti Nama",
+      onClick: () => callbacks.onRename(template),
+    },
+    {
       key: "duplicate",
       icon: <CopyOutlined />,
       label: "Duplicate",
@@ -137,7 +152,7 @@ function getActionItems(
           {
             key: "create-revision",
             icon: <FormOutlined />,
-            label: "Create Revision",
+            label: "Create Revision Draft",
             onClick: () => callbacks.onCreateRevision(template),
           },
         ]
@@ -172,6 +187,7 @@ function TemplateCard({
   template,
   preloadThumbnail,
   onDuplicate,
+  onRename,
   onCreateRevision,
   onDelete,
   onSubmit,
@@ -179,6 +195,7 @@ function TemplateCard({
   template: LocalDesignerTemplate;
   preloadThumbnail: boolean;
   onDuplicate: (template: LocalDesignerTemplate) => void;
+  onRename: (template: LocalDesignerTemplate) => void;
   onCreateRevision: (template: LocalDesignerTemplate) => void;
   onDelete: (template: LocalDesignerTemplate) => void;
   onSubmit: (template: LocalDesignerTemplate) => void;
@@ -189,10 +206,13 @@ function TemplateCard({
 
   const actionItems = getActionItems(template, {
     onDuplicate,
+    onRename,
     onCreateRevision,
     onSubmit,
     onDelete,
   });
+
+  const tier = (template.packageTier || "basic").toLowerCase();
 
   return (
     <Card
@@ -222,6 +242,14 @@ function TemplateCard({
                 Thumbnail belum tersedia
               </div>
             )}
+            <div className="absolute left-2.5 top-2.5 z-10">
+              <Tag
+                color={tier === "pro" ? "gold" : tier === "medium" ? "cyan" : "default"}
+                className="!mr-0 !font-bold shadow-xs uppercase !text-[10px]"
+              >
+                {tier}
+              </Tag>
+            </div>
             <div className="absolute right-2.5 top-2.5 z-10">
               <DesignerStatusTag status={template.status} />
             </div>
@@ -239,9 +267,15 @@ function TemplateCard({
               {template.name}
             </Title>
           </Link>
-          <Text type="secondary" className="block truncate text-xs">
-            {template.category_name} · {template.style}
-          </Text>
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <Text type="secondary" className="truncate text-xs">
+              {template.category_name}
+            </Text>
+            <span className="text-stone-300">·</span>
+            <Tag color="orange" className="!mr-0 !text-[10px] !px-1.5 !py-0">
+              {template.themeId ? template.themeId.replace(/^theme-/, "") : template.style || "Botanical"}
+            </Tag>
+          </div>
         </div>
         <Dropdown menu={{ items: actionItems }} trigger={["click"]}>
           <Button
@@ -284,16 +318,26 @@ export default function DesignerTemplatesPage() {
   const {
     templates,
     duplicateTemplate,
+    renameTemplate,
     createRevision,
     deleteTemplate,
     submitForReview,
+    importTemplate,
   } = useDesignerTemplates();
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const [themeFilter, setThemeFilter] = useState<string>("all");
   const [sortOption, setSortOption] = useState<SortOption>("updated_desc");
   const [page, setPage] = useState(1);
+
+  // Modals state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<LocalDesignerTemplate | null>(null);
+  const [renameInput, setRenameInput] = useState("");
 
   // Kategori unik untuk dropdown filter
   const categories = useMemo(
@@ -301,6 +345,8 @@ export default function DesignerTemplatesPage() {
     [templates]
   );
   const [categoryFilter, setCategoryFilter] = useState("all");
+
+  const globalThemes = getAllGlobalThemePresets();
 
   // Filtering & Sorting
   const filteredTemplates = useMemo(() => {
@@ -325,7 +371,15 @@ export default function DesignerTemplatesPage() {
       const matchesCategory =
         categoryFilter === "all" || template.category_name === categoryFilter;
 
-      return matchesSearch && matchesStatus && matchesCategory;
+      const templateTier = (template.packageTier || "basic").toLowerCase();
+      const matchesTier =
+        tierFilter === "all" || templateTier === tierFilter;
+
+      const templateTheme = template.themeId || template.themeCategory || template.style;
+      const matchesTheme =
+        themeFilter === "all" || templateTheme === themeFilter;
+
+      return matchesSearch && matchesStatus && matchesCategory && matchesTier && matchesTheme;
     });
 
     return filtered.sort((a, b) => {
@@ -349,7 +403,7 @@ export default function DesignerTemplatesPage() {
           );
       }
     });
-  }, [templates, search, statusFilter, categoryFilter, sortOption]);
+  }, [templates, search, statusFilter, categoryFilter, tierFilter, themeFilter, sortOption]);
 
   // Actions handlers
   const handleDuplicate = (template: LocalDesignerTemplate) => {
@@ -357,6 +411,23 @@ export default function DesignerTemplatesPage() {
     if (newId) {
       message.success(`Template berhasil diduplikasi.`);
     }
+  };
+
+  const handleOpenRename = (template: LocalDesignerTemplate) => {
+    setRenameTarget(template);
+    setRenameInput(template.name);
+  };
+
+  const handleConfirmRename = () => {
+    if (!renameTarget) return;
+    const trimmed = renameInput.trim();
+    if (!trimmed) {
+      message.error("Nama template tidak boleh kosong.");
+      return;
+    }
+    renameTemplate(renameTarget.id, trimmed);
+    message.success(`Nama template berhasil diubah menjadi "${trimmed}".`);
+    setRenameTarget(null);
   };
 
   const handleCreateRevision = (template: LocalDesignerTemplate) => {
@@ -392,6 +463,12 @@ export default function DesignerTemplatesPage() {
         message.success("Template berhasil diajukan untuk review.");
       },
     });
+  };
+
+  const handleImportNewTemplate = (templateJSON: InviteUTemplateJSON) => {
+    const newId = importTemplate(templateJSON);
+    message.success(`Template berhasil diimpor sebagai Template #${newId}.`);
+    router.push(`/designer/templates/${newId}/edit`);
   };
 
   // Pagination slice
@@ -431,25 +508,43 @@ export default function DesignerTemplatesPage() {
             >
               {template.name}
             </Link>
-            <Text type="secondary" className="block truncate text-xs">
-              {template.category_name} · {template.style}
-            </Text>
+            <div className="flex items-center gap-1.5 text-xs text-[#765D48]">
+              <span>{template.category_name}</span>
+              <span>·</span>
+              <Tag color="orange" className="!mr-0 !text-[10px] !px-1.5 !py-0">
+                {template.themeId ? template.themeId.replace(/^theme-/, "") : template.style || "Botanical"}
+              </Tag>
+            </div>
           </div>
         </div>
       ),
     },
     {
+      title: "Tier",
+      dataIndex: "packageTier",
+      key: "tier",
+      width: 110,
+      render: (tier: string) => {
+        const val = (tier || "basic").toLowerCase();
+        return (
+          <Tag color={val === "pro" ? "gold" : val === "medium" ? "cyan" : "default"} className="!font-bold uppercase !text-[11px]">
+            {val}
+          </Tag>
+        );
+      },
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 150,
+      width: 140,
       render: (status: string) => <DesignerStatusTag status={status} />,
     },
     {
       title: "Terakhir Diedit",
       dataIndex: "updated_at",
       key: "updated_at",
-      width: 200,
+      width: 180,
       responsive: ["md"],
       render: (dateStr: string) => (
         <Text className="text-xs text-[#765D48]">
@@ -468,6 +563,7 @@ export default function DesignerTemplatesPage() {
           status === "draft" || status === "rejected" || status === "revision";
         const actionItems = getActionItems(template, {
           onDuplicate: handleDuplicate,
+          onRename: handleOpenRename,
           onCreateRevision: handleCreateRevision,
           onSubmit: handleSubmit,
           onDelete: handleDelete,
@@ -499,26 +595,41 @@ export default function DesignerTemplatesPage() {
 
   return (
     <div className="space-y-4">
-      {/* 1. Header & Primary CTA */}
+      {/* 1. Header & Actions */}
       <DesignerPageHeader
         title="Template Management"
-        description="Kelola, pratinjau, dan ajukan template undangan digital Anda."
+        description="Kelola, pratinjau, uji responsif, dan ajukan template undangan digital Anda."
         actions={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => router.push("/designer/templates/create")}
-          >
-            Create New Template
-          </Button>
+          <Space wrap>
+            <Button
+              icon={<BranchesOutlined />}
+              onClick={() => setIsExternalImportOpen(true)}
+            >
+              Import Eksternal (Figma/Elementor)
+            </Button>
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => setIsImportModalOpen(true)}
+            >
+              Impor JSON
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push("/designer/templates/create")}
+              className="!bg-[#FCB040] !text-[#3A2313] !font-bold hover:!bg-[#E99B22]"
+            >
+              Buat Template Baru
+            </Button>
+          </Space>
         }
       />
 
       {/* 2. Filter & Controls Bar */}
       <Card className="border-[#EBD9BE]" styles={{ body: { padding: "14px 16px" } }}>
-        <Row gutter={[12, 12]} align="middle" justify="space-between">
+        <Row gutter={[12, 12]} align="middle">
           {/* Search Box */}
-          <Col xs={24} sm={10} md={7}>
+          <Col xs={24} sm={12} md={6}>
             <Input.Search
               allowClear
               placeholder="Cari nama template..."
@@ -531,7 +642,7 @@ export default function DesignerTemplatesPage() {
           </Col>
 
           {/* Status Filter */}
-          <Col xs={12} sm={7} md={5}>
+          <Col xs={12} sm={6} md={4}>
             <Select
               className="w-full"
               value={statusFilter}
@@ -543,15 +654,65 @@ export default function DesignerTemplatesPage() {
                 { value: "all", label: "Semua Status" },
                 { value: "draft", label: "Draft" },
                 { value: "in_review", label: "Pending Review" },
-                { value: "revision", label: "Revision" },
+                { value: "revision", label: "Revision Needed" },
                 { value: "approved", label: "Published" },
                 { value: "rejected", label: "Rejected" },
               ]}
             />
           </Col>
 
+          {/* Tier Filter */}
+          <Col xs={12} sm={6} md={3}>
+            <Select
+              className="w-full"
+              value={tierFilter}
+              onChange={(val: TierFilter) => {
+                setTierFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "Semua Tier" },
+                { value: "basic", label: "Basic" },
+                { value: "medium", label: "Medium" },
+                { value: "pro", label: "Pro" },
+              ]}
+            />
+          </Col>
+
+          {/* Theme Filter */}
+          <Col xs={12} sm={6} md={4}>
+            <Select
+              className="w-full"
+              value={themeFilter}
+              onChange={(val) => {
+                setThemeFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "Semua Tema" },
+                ...globalThemes.map((t) => ({ value: t.id, label: t.name })),
+              ]}
+            />
+          </Col>
+
+          {/* Category Filter */}
+          <Col xs={12} sm={6} md={3}>
+            <Select
+              className="w-full"
+              value={categoryFilter}
+              onChange={(val) => {
+                setCategoryFilter(val);
+                setPage(1);
+              }}
+              options={[
+                { value: "all", label: "Semua Kategori" },
+                ...categories.map((c) => ({ value: c, label: c })),
+              ]}
+            />
+          </Col>
+
           {/* Sorting */}
-          <Col xs={12} sm={7} md={5}>
+          <Col xs={16} sm={8} md={3}>
             <Select
               className="w-full"
               value={sortOption}
@@ -568,24 +729,8 @@ export default function DesignerTemplatesPage() {
             />
           </Col>
 
-          {/* Category Filter */}
-          <Col xs={14} sm={7} md={4}>
-            <Select
-              className="w-full"
-              value={categoryFilter}
-              onChange={(val) => {
-                setCategoryFilter(val);
-                setPage(1);
-              }}
-              options={[
-                { value: "all", label: "Semua Kategori" },
-                ...categories.map((c) => ({ value: c, label: c })),
-              ]}
-            />
-          </Col>
-
           {/* View Mode Switcher (Grid vs List) */}
-          <Col xs={10} sm={5} md={3} className="text-right">
+          <Col xs={8} sm={4} md={1} className="text-right">
             <Segmented
               value={viewMode}
               onChange={(val) => setViewMode(val as "grid" | "list")}
@@ -593,12 +738,10 @@ export default function DesignerTemplatesPage() {
                 {
                   value: "grid",
                   icon: <AppstoreOutlined />,
-                  label: "Grid",
                 },
                 {
                   value: "list",
                   icon: <UnorderedListOutlined />,
-                  label: "List",
                 },
               ]}
             />
@@ -617,6 +760,7 @@ export default function DesignerTemplatesPage() {
                     template={template}
                     preloadThumbnail={index === 0}
                     onDuplicate={handleDuplicate}
+                    onRename={handleOpenRename}
                     onCreateRevision={handleCreateRevision}
                     onDelete={handleDelete}
                     onSubmit={handleSubmit}
@@ -659,19 +803,59 @@ export default function DesignerTemplatesPage() {
             description={
               templates.length
                 ? "Tidak ada template yang cocok dengan filter pencarian Anda."
-                : "Belum ada template yang dibuat."
+                : "Belum ada template yang dibuat. Buat template pertama Anda sekarang!"
             }
           >
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => router.push("/designer/templates/create")}
+              className="!bg-[#FCB040] !text-[#3A2313] !font-bold hover:!bg-[#E99B22]"
             >
               Buat Template Baru
             </Button>
           </Empty>
         </Card>
       )}
+
+      {/* Rename Modal */}
+      {renameTarget && (
+        <Modal
+          open={Boolean(renameTarget)}
+          onCancel={() => setRenameTarget(null)}
+          title="Ganti Nama Template"
+          okText="Simpan Nama"
+          cancelText="Batal"
+          onOk={handleConfirmRename}
+        >
+          <div className="space-y-3 py-2">
+            <Text className="text-xs text-[#765D48] block">
+              Masukkan nama baru untuk template <strong>{renameTarget.name}</strong>:
+            </Text>
+            <Input
+              value={renameInput}
+              onChange={(e) => setRenameInput(e.target.value)}
+              onPressEnter={handleConfirmRename}
+              placeholder="Nama template..."
+              maxLength={80}
+              autoFocus
+            />
+          </div>
+        </Modal>
+      )}
+
+      {/* Import JSON Modal */}
+      <ImportJSONModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportAsNewTemplate={handleImportNewTemplate}
+      />
+
+      {/* External Design Import Modal */}
+      <ExternalDesignImportModal
+        open={isExternalImportOpen}
+        onClose={() => setIsExternalImportOpen(false)}
+      />
     </div>
   );
 }

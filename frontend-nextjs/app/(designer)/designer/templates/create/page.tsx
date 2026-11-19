@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { BuilderLayout } from "@/components/builder/BuilderLayout";
+import { TemplateCreateWizard } from "../components/TemplateCreateWizard";
 
 export default function CreateTemplatePage() {
-  return <BuilderLayout mode="create" />;
+  return <TemplateCreateWizard />;
 }

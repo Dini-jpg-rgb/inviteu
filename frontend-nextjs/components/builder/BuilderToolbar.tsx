@@ -4,10 +4,14 @@ import React from "react";
 import Link from "next/link";
 import {
   ArrowLeftOutlined,
+  BranchesOutlined,
   CheckCircleOutlined,
+  CodeOutlined,
   DesktopOutlined,
   EyeOutlined,
+  FormOutlined,
   FullscreenOutlined,
+  HistoryOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   MobileOutlined,
@@ -17,11 +21,13 @@ import {
   SyncOutlined,
   TabletOutlined,
   UndoOutlined,
+  UploadOutlined,
   ZoomInOutlined,
   ZoomOutOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Select, Space, Tag, Tooltip, Typography } from "antd";
 import { BuilderDevice } from "./model";
+import { formatPackageTierLabel, formatTemplateStatusLabel } from "@/lib/template-json";
 import styles from "./BuilderToolbar.module.css";
 
 const { Text } = Typography;
@@ -36,6 +42,7 @@ export type AutosaveState =
 interface BuilderToolbarProps {
   title: string;
   status: string;
+  packageTier?: string;
   onTitleChange: (title: string) => void;
   mode: "create" | "edit";
   zoom: number;
@@ -44,6 +51,8 @@ interface BuilderToolbarProps {
   canRedo: boolean;
   onZoomChange: (zoom: number) => void;
   onDeviceChange: (device: BuilderDevice) => void;
+  customWidth?: number;
+  onCustomWidthChange?: (width?: number) => void;
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
@@ -54,25 +63,19 @@ interface BuilderToolbarProps {
   sidebarCollapsed: boolean;
   onToggleSidebar: () => void;
   autosaveStatus?: AutosaveState;
+  lastSavedTime?: string;
   onSubmitForReview?: () => void;
-}
-
-function statusLabel(status: string) {
-  const normalized = status.toLowerCase();
-  if (["in_review", "pending_review"].includes(normalized)) return "In Review";
-  if (
-    ["published", "publish", "approved", "active", "aktif"].includes(normalized)
-  )
-    return "Aktif";
-  if (["expired", "kedaluwarsa"].includes(normalized)) return "Kedaluwarsa";
-  if (["archived", "diarsipkan"].includes(normalized)) return "Diarsipkan";
-  if (["rejected", "revisi", "revision"].includes(normalized)) return "Perlu Revisi";
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  onExportJSON?: () => void;
+  onImportJSON?: () => void;
+  onOpenRevisionHistory?: () => void;
+  onOpenExternalImport?: () => void;
+  onCreateRevisionDraft?: () => void;
 }
 
 export function BuilderToolbar({
   title,
   status,
+  packageTier,
   onTitleChange,
   mode,
   zoom,
@@ -81,6 +84,8 @@ export function BuilderToolbar({
   canRedo,
   onZoomChange,
   onDeviceChange,
+  customWidth: _customWidth,
+  onCustomWidthChange,
   onUndo,
   onRedo,
   onSave,
@@ -91,7 +96,13 @@ export function BuilderToolbar({
   sidebarCollapsed,
   onToggleSidebar,
   autosaveStatus = "saved",
+  lastSavedTime,
   onSubmitForReview,
+  onExportJSON,
+  onImportJSON,
+  onOpenRevisionHistory,
+  onOpenExternalImport,
+  onCreateRevisionDraft,
 }: BuilderToolbarProps) {
   const normalizedStatus = status.toLowerCase();
   const statusStyle =
@@ -160,33 +171,42 @@ export function BuilderToolbar({
               className={styles.titleInput}
             />
             <Tag style={statusStyle} className="!mr-0 hidden sm:inline-flex">
-              {statusLabel(status)}
+              {formatTemplateStatusLabel(status)}
             </Tag>
-
-            {/* Autosave status indicator */}
-            {autosaveStatus === "saving" ? (
-              <Tag color="gold" className="!mr-0 !text-[11px]">
-                <SyncOutlined spin className="mr-1" />
-                Saving...
-              </Tag>
-            ) : autosaveStatus === "offline" ? (
-              <Tag color="orange" className="!mr-0 !text-[11px]">
-                Offline (Waiting to sync)
-              </Tag>
-            ) : autosaveStatus === "failed" ? (
-              <Tag color="error" className="!mr-0 !text-[11px]">
-                Save failed
-              </Tag>
-            ) : autosaveStatus === "saved" && !hasUnsavedChanges ? (
-              <Tag color="green" className="!mr-0 !text-[11px]">
-                <CheckCircleOutlined className="mr-1" />
-                All changes saved
-              </Tag>
-            ) : (
-              <Tag color="gold" className="!mr-0 !text-[11px]">
-                Perubahan belum disimpan
-              </Tag>
+            {packageTier && (
+              <Tooltip title="Kompatibilitas Tier Produk InviteU">
+                <Tag color="cyan" className="!mr-0 hidden md:inline-flex !font-medium">
+                  {formatPackageTierLabel(packageTier)}
+                </Tag>
+              </Tooltip>
             )}
+
+            {/* Autosave status indicator with local storage explanation */}
+            <Tooltip title="Perubahan disimpan otomatis ke sesi browser lokal. Belum tersinkronisasi ke server backend.">
+              {autosaveStatus === "saving" ? (
+                <Tag color="gold" className="!mr-0 !text-[11px]">
+                  <SyncOutlined spin className="mr-1" />
+                  Saving...
+                </Tag>
+              ) : autosaveStatus === "offline" ? (
+                <Tag color="orange" className="!mr-0 !text-[11px]">
+                  Offline (Menunggu jaringan)
+                </Tag>
+              ) : autosaveStatus === "failed" ? (
+                <Tag color="error" className="!mr-0 !text-[11px]">
+                  Save failed
+                </Tag>
+              ) : autosaveStatus === "saved" && !hasUnsavedChanges ? (
+                <Tag color="green" className="!mr-0 !text-[11px]">
+                  <CheckCircleOutlined className="mr-1" />
+                  Tersimpan {lastSavedTime ? `(${lastSavedTime})` : ""}
+                </Tag>
+              ) : (
+                <Tag color="gold" className="!mr-0 !text-[11px]">
+                  Perubahan belum disimpan
+                </Tag>
+              )}
+            </Tooltip>
           </div>
         </div>
       </div>
@@ -210,20 +230,31 @@ export function BuilderToolbar({
           />
         </Tooltip>
 
-        {/* Device preview switcher with single responsive design explanation */}
-        <Tooltip title="Inspeksi Viewport: Satu desain responsif untuk semua layar">
+        {/* Device preview switcher: Exactly 3 device preview options (Desktop, Tablet, Mobile) */}
+        <Tooltip title="Device Preview: Satu desain utama untuk semua perangkat (Desktop baseline)">
           <Select
             aria-label="Inspeksi perangkat"
             value={device}
-            onChange={onDeviceChange}
-            className="!w-[118px] sm:!w-[140px]"
+            onChange={(val) => {
+              if (val === "desktop") {
+                onDeviceChange("desktop");
+                onCustomWidthChange?.(1440);
+              } else if (val === "tablet") {
+                onDeviceChange("tablet");
+                onCustomWidthChange?.(768);
+              } else if (val === "mobile") {
+                onDeviceChange("mobile");
+                onCustomWidthChange?.(390);
+              }
+            }}
+            className="!w-[130px] sm:!w-[155px]"
             options={[
               {
-                value: "mobile",
+                value: "desktop",
                 label: (
                   <Space size={6}>
-                    <MobileOutlined />
-                    Mobile
+                    <DesktopOutlined />
+                    Desktop
                   </Space>
                 ),
               },
@@ -237,11 +268,11 @@ export function BuilderToolbar({
                 ),
               },
               {
-                value: "desktop",
+                value: "mobile",
                 label: (
                   <Space size={6}>
-                    <DesktopOutlined />
-                    Desktop
+                    <MobileOutlined />
+                    Mobile
                   </Space>
                 ),
               },
@@ -282,6 +313,71 @@ export function BuilderToolbar({
         <Button icon={<EyeOutlined />} onClick={onPreview} className="inline-flex">
           <span className="hidden sm:inline">Preview</span>
         </Button>
+
+        {/* Revision History Button */}
+        {onOpenRevisionHistory && (
+          <Tooltip title="Riwayat Snapshot & Revisi Desain">
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={onOpenRevisionHistory}
+              className="inline-flex"
+            >
+              <span className="hidden lg:inline">Revisi</span>
+            </Button>
+          </Tooltip>
+        )}
+
+        {/* Import JSON Button */}
+        {onImportJSON && (
+          <Tooltip title="Impor Template JSON internal">
+            <Button
+              icon={<UploadOutlined />}
+              onClick={onImportJSON}
+              className="inline-flex"
+            >
+              <span className="hidden lg:inline">Impor</span>
+            </Button>
+          </Tooltip>
+        )}
+
+        {/* External Design Import Foundation Button */}
+        {onOpenExternalImport && (
+          <Tooltip title="Arsitektur Import Desain Eksternal (Figma / Elementor)">
+            <Button
+              icon={<BranchesOutlined />}
+              onClick={onOpenExternalImport}
+              className="inline-flex hidden xl:inline-flex"
+            >
+              <span>Figma/Elementor</span>
+            </Button>
+          </Tooltip>
+        )}
+
+        {/* Export JSON Button */}
+        {onExportJSON && (
+          <Tooltip title="Ekspor atau lihat Template JSON internal">
+            <Button
+              icon={<CodeOutlined />}
+              onClick={onExportJSON}
+              className="inline-flex !border-[#EBD9BE] !text-[#9A5A00] hover:!border-[#9A5A00]"
+            >
+              <span className="hidden sm:inline">JSON</span>
+            </Button>
+          </Tooltip>
+        )}
+
+        {/* Create Revision Draft for Published templates */}
+        {onCreateRevisionDraft && isReadOnly && ["published", "approved"].includes(normalizedStatus) && (
+          <Button
+            type="primary"
+            icon={<FormOutlined />}
+            onClick={onCreateRevisionDraft}
+            className="!bg-[#9A5A00] !border-[#9A5A00]"
+          >
+            <span className="hidden sm:inline">Buat Revisi (Revision Draft)</span>
+            <span className="sm:hidden">Revisi</span>
+          </Button>
+        )}
 
         {/* Save Draft Button */}
         <Button

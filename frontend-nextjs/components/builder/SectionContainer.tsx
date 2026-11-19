@@ -1,13 +1,15 @@
 "use client";
 
-import React from "react";
-import { BuilderSection } from "./model";
+import React, { useEffect, useRef, useState } from "react";
+import { BuilderSection, BuilderSectionChild } from "./model";
 import { ElementRenderer } from "./ElementRenderer";
 import { WidgetRenderer } from "./WidgetRenderer";
 import { BuilderDevice, getResponsiveSize } from "./model";
 import { ObjectManipulationFrame } from "./ObjectManipulationFrame";
 import { getResponsiveProps } from "./model";
 import { getBuilderObjectStyle } from "./styles";
+import { DecorativeAnimationOverlay } from "./animation/DecorativeAnimationOverlay";
+import { DecorativeAnimationType } from "./animation/animationTypes";
 
 interface SectionContainerProps {
   section: BuilderSection;
@@ -25,7 +27,15 @@ interface SectionContainerProps {
     id: string,
     size: { width: number; height: number }
   ) => void;
-  onDirectTextChange?: (id: string, text: string) => void;
+  onDirectTextChange?: (id: string, text: string, fieldKey?: string) => void;
+  onCopyStyle?: (id: string) => void;
+  onPasteStyle?: (id: string) => void;
+  hasCopiedStyle?: boolean;
+  onDuplicate?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onToggleLock?: (id: string) => void;
+  onMoveLayer?: (id: string, direction: -1 | 1) => void;
+  onDropFromPanel?: (sectionId: string, action: string, containerId?: string) => void;
 }
 
 export function SectionContainer({
@@ -39,11 +49,156 @@ export function SectionContainer({
   onPositionChange,
   onSizeChange,
   onDirectTextChange,
+  onCopyStyle,
+  onPasteStyle,
+  hasCopiedStyle,
+  onDuplicate,
+  onDelete,
+  onToggleLock,
+  onMoveLayer,
+  onDropFromPanel,
 }: SectionContainerProps) {
+  // Hooks must be called unconditionally before any early return
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | undefined>(
+    undefined
+  );
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    // Set initial value
+    setContainerWidth(el.offsetWidth);
+    const observer = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Early return after hooks
   if (!section.visible) return null;
+
   const size = getResponsiveSize(section, device);
   const props = getResponsiveProps(section, device);
   const objectStyle = getBuilderObjectStyle(props);
+  const selectedChild = section.children.find((c) => c.id === selectedId);
+  const selectedGroupId = selectedChild?.groupId;
+
+  const isRootChild = (child: BuilderSectionChild) =>
+    !child.parentContainerId ||
+    !section.children.some((c) => c.id === child.parentContainerId);
+
+  const rootChildren = section.children.filter(
+    (child) => isRootChild(child) && child.visible
+  );
+
+  const renderChildNode = (child: BuilderSectionChild): React.ReactNode => {
+    if (!child.visible) return null;
+
+    let childInnerContent: React.ReactNode;
+    if (child.kind === "widget") {
+      childInnerContent = (
+        <WidgetRenderer
+          widget={child}
+          device={device}
+          onSelect={() => onSelect(child.id)}
+          previewMode={preview}
+          parentSectionProps={props}
+          onDirectFieldChange={
+            onDirectTextChange
+              ? (fieldKey, text) => onDirectTextChange(child.id, text, fieldKey)
+              : undefined
+          }
+        />
+      );
+    } else if (child.elementType === "container") {
+      const containerChildren = section.children.filter(
+        (c) => c.parentContainerId === child.id && c.visible
+      );
+      childInnerContent = (
+        <ElementRenderer
+          element={child}
+          device={device}
+          previewMode={preview}
+          onSelect={() => onSelect(child.id)}
+          parentSectionProps={props}
+          childrenNodes={
+            <div
+              className="h-full w-full"
+              onDragOver={(e) => {
+                if (preview || !editable) return;
+                if (e.dataTransfer.types.includes("application/x-inviteu-element")) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = "copy";
+                }
+              }}
+              onDrop={(e) => {
+                if (preview || !editable) return;
+                const data = e.dataTransfer.getData("application/x-inviteu-element");
+                if (data && onDropFromPanel) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.action) {
+                      onDropFromPanel(section.id, parsed.action, child.id);
+                    }
+                  } catch {
+                    // ignore
+                  }
+                }
+              }}
+            >
+              {containerChildren.map((c) => renderChildNode(c))}
+            </div>
+          }
+        />
+      );
+    } else {
+      childInnerContent = (
+        <ElementRenderer
+          element={child}
+          device={device}
+          previewMode={preview}
+          onSelect={() => onSelect(child.id)}
+          parentSectionProps={props}
+          onDirectTextChange={
+            onDirectTextChange
+              ? (text) => onDirectTextChange(child.id, text)
+              : undefined
+          }
+        />
+      );
+    }
+
+    return (
+      <ObjectManipulationFrame
+        key={child.id}
+        node={child}
+        device={device}
+        zoom={zoom}
+        selected={selectedId === child.id}
+        selectedGroupId={selectedGroupId}
+        editable={editable}
+        containerWidth={containerWidth}
+        onSelect={() => onSelect(child.id)}
+        onPositionChange={onPositionChange}
+        onSizeChange={onSizeChange}
+        onCopyStyle={onCopyStyle}
+        onPasteStyle={onPasteStyle}
+        hasCopiedStyle={hasCopiedStyle}
+        onDuplicate={onDuplicate}
+        onDelete={onDelete}
+        onToggleLock={onToggleLock}
+        onMoveLayer={onMoveLayer}
+      >
+        {childInnerContent}
+      </ObjectManipulationFrame>
+    );
+  };
 
   return (
     <section
@@ -51,11 +206,43 @@ export function SectionContainer({
         event.stopPropagation();
         onSelect(section.id);
       }}
+      onDragOver={(event) => {
+        if (preview || !editable) return;
+        if (event.dataTransfer.types.includes("application/x-inviteu-element")) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          if (!isDragOver) setIsDragOver(true);
+        }
+      }}
+      onDragLeave={(event) => {
+        if (preview || !editable) return;
+        event.preventDefault();
+        setIsDragOver(false);
+      }}
+      onDrop={(event) => {
+        if (preview || !editable) return;
+        setIsDragOver(false);
+        const data = event.dataTransfer.getData("application/x-inviteu-element");
+        if (data && onDropFromPanel) {
+          event.preventDefault();
+          event.stopPropagation();
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.action) {
+              onDropFromPanel(section.id, parsed.action);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }}
       className={
         preview
           ? "relative mx-auto w-full max-w-none"
           : `relative mx-auto w-full max-w-none border border-dashed bg-white transition-[border-color,box-shadow] ${
-              selectedId === section.id
+              isDragOver
+                ? "z-[2] border-[#FCB040] shadow-[0_0_0_2px_#FCB040]"
+                : selectedId === section.id
                 ? "z-[1] border-[#FCB040] shadow-[inset_0_0_0_1px_rgba(252,176,64,0.28)]"
                 : "border-[#e8dfd3] hover:border-[#d7a148]"
             }`
@@ -73,68 +260,78 @@ export function SectionContainer({
         overflow: preview ? "hidden" : undefined,
       }}
     >
+      {/* Background Video if configured */}
+      {props.backgroundType === "video" && props.backgroundVideo && (
+        <video
+          src={String(props.backgroundVideo)}
+          poster={String(props.backgroundPoster || props.backgroundImage || "") || undefined}
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover -z-10"
+        />
+      )}
+
+      {/* Background Overlay */}
+      {Number(props.overlayOpacity) > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-5"
+          style={{
+            backgroundColor: String(props.overlayColor || "#000000"),
+            opacity: Math.max(0, Math.min(100, Number(props.overlayOpacity) || 0)) / 100,
+          }}
+        />
+      )}
+
+      {isDragOver && !preview && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-[#FCB040]/10 border-2 border-dashed border-[#FCB040] transition-all">
+          <span className="rounded bg-[#FCB040] px-3 py-1 text-xs font-semibold text-white shadow-md">
+            + Lepaskan elemen ke dalam Section ini
+          </span>
+        </div>
+      )}
       {!preview && (
         <span className="absolute left-2 top-2 z-20 rounded bg-white/90 px-1.5 py-0.5 text-[10px] font-medium leading-none text-[#9A5A00]">
           {section.name}
         </span>
       )}
+      {/* Decorative Animation Overlay if configured */}
+      {props.decorativeAnimation && props.decorativeAnimation !== "none" && (
+        <DecorativeAnimationOverlay
+          type={props.decorativeAnimation as DecorativeAnimationType}
+          density="medium"
+        />
+      )}
+
       <div
+        ref={innerRef}
         className="relative"
         style={{
           minHeight: size.height,
+          maxWidth:
+            Number(props.contentMaxWidth) > 0
+              ? `${Number(props.contentMaxWidth)}px`
+              : undefined,
+          margin: Number(props.contentMaxWidth) > 0 ? "0 auto" : undefined,
+          width: "100%",
           display: String(props.display || "flex"),
-          flexDirection: String(props.flexDirection || "column") as
-            | "row"
-            | "column",
+          flexDirection: (device === "mobile" && (props.autoStackMobile !== false || !props.flexDirection)
+            ? "column"
+            : String(props.flexDirection || "column")) as "row" | "column",
           gap: Number(props.gap) || 0,
           alignItems: String(props.alignment || "stretch"),
           justifyContent: String(props.justify || "flex-start"),
+          boxSizing: "border-box",
         }}
       >
-        {!preview &&
-        section.children.filter((child) => child.visible).length === 0 ? (
+        {!preview && rootChildren.length === 0 ? (
           <div className="flex h-full items-center justify-center text-xs text-[#9aa1ad]">
             Empty section
           </div>
         ) : (
-          section.children.map(
-            (child) =>
-              child.visible && (
-                <ObjectManipulationFrame
-                  key={child.id}
-                  node={child}
-                  device={device}
-                  zoom={zoom}
-                  selected={selectedId === child.id}
-                  editable={editable}
-                  onSelect={() => onSelect(child.id)}
-                  onPositionChange={onPositionChange}
-                  onSizeChange={onSizeChange}
-                >
-                  {child.kind === "widget" ? (
-                    <WidgetRenderer
-                      widget={child}
-                      device={device}
-                      onSelect={() => onSelect(child.id)}
-                      previewMode={preview}
-                    />
-                  ) : (
-                    <ElementRenderer
-                      element={child}
-                      device={device}
-                      previewMode={preview}
-                      onSelect={() => onSelect(child.id)}
-                      parentSectionProps={props}
-                      onDirectTextChange={
-                        onDirectTextChange
-                          ? (text) => onDirectTextChange(child.id, text)
-                          : undefined
-                      }
-                    />
-                  )}
-                </ObjectManipulationFrame>
-              )
-          )
+          rootChildren.map((child) => renderChildNode(child))
         )}
       </div>
     </section>

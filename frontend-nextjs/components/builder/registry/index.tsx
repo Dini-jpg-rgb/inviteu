@@ -189,7 +189,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Cover & Hero",
     category: "core",
     description: "Header visual utama, foto cover, nama mempelai dan pesan pembuka",
-    icon: "🖼️",
+    icon: "PictureOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -246,7 +246,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Event Details",
     category: "event",
     description: "Informasi tanggal, jam acara, nama gedung/venue dan link Google Maps",
-    icon: "📍",
+    icon: "EnvironmentOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -316,7 +316,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Gallery",
     category: "media",
     description: "Koleksi foto pre-wedding dan momen bahagia mempelai",
-    icon: "📸",
+    icon: "CameraOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -352,7 +352,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Love Story",
     category: "core",
     description: "Timeline perjalanan romantis mempelai dari awal bertemu hingga menikah",
-    icon: "📖",
+    icon: "BookOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -395,7 +395,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Countdown",
     category: "interactive",
     description: "Hitung mundur interaktif menuju hari dan jam akad/resepsi",
-    icon: "⏳",
+    icon: "ClockCircleOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -444,7 +444,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Background Music",
     category: "media",
     description: "Pemutar audio musik latar romantis dengan kontrol putar/jeda",
-    icon: "🎵",
+    icon: "CustomerServiceOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -483,7 +483,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "RSVP Form",
     category: "interactive",
     description: "Formulir konfirmasi kehadiran tamu (Hadir/Tidak Hadir) secara langsung",
-    icon: "✉️",
+    icon: "MailOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -529,7 +529,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Digital Gift",
     category: "interactive",
     description: "Amplop digital cashless, nomor rekening bank dan tombol salin rekening",
-    icon: "🎁",
+    icon: "GiftOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -592,7 +592,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Dresscode",
     category: "event",
     description: "Panduan palet warna busana tamu undangan sesuai tema acara",
-    icon: "👗",
+    icon: "SkinOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -631,7 +631,7 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     name: "Quote Banner",
     category: "core",
     description: "Blok kutipan romantis bertekstur dengan pesan dan nama mempelai",
-    icon: "📜",
+    icon: "FileTextOutlined",
     defaultSettings: {
       alignment: "center",
       fontFamily: "serif",
@@ -666,12 +666,59 @@ export const WIDGET_REGISTRY: Record<string, MasterWidget> = {
     renderer: QuoteBannerWidget,
   },
 
+  guestbook: {
+    id: "guestbook",
+    name: "Guestbook",
+    category: "interactive",
+    description: "Buku tamu digital, ucapan doa restu, dan pesan selamat dari para tamu undangan",
+    icon: "BookOutlined",
+    defaultSettings: {
+      alignment: "center",
+      fontFamily: "serif",
+      textColor: "#24380f",
+      accentColor: "#6f7f5f",
+      backgroundColor: "#ffffff",
+      paddingY: "md",
+    },
+    defaultContent: {
+      title: "Buku Tamu & Ucapan Doa",
+      subtitle: "Tuliskan doa restu dan pesan hangat untuk kami berdua.",
+      buttonLabel: "Kirim Ucapan",
+      showCount: true,
+    },
+    editableFields: [
+      {
+        name: "title",
+        label: "Judul Buku Tamu",
+        type: "text",
+        target: "content",
+        category: "content",
+      },
+      {
+        name: "subtitle",
+        label: "Sub-keterangan",
+        type: "textarea",
+        target: "content",
+        category: "content",
+      },
+      {
+        name: "buttonLabel",
+        label: "Teks Tombol Kirim",
+        type: "text",
+        target: "content",
+        category: "content",
+      },
+      ...COMMON_STYLE_FIELDS,
+    ],
+    renderer: FallbackWidget,
+  },
+
   video_greeting: {
     id: "video_greeting",
     name: "Video Greeting",
     category: "addon",
     description: "Add-On: Pemutar video sinematik ucapan selamat dan kisah mempelai",
-    icon: "🎬",
+    icon: "VideoCameraOutlined",
     isAddon: true,
     defaultSettings: {
       alignment: "center",

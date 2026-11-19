@@ -13,7 +13,7 @@
 
 .header {
   flex: 0 0 auto;
-  padding: 14px 14px 10px;
+  padding: 12px 14px 10px;
   border-bottom: 1px solid #f0e9df;
 }
 
@@ -55,19 +55,41 @@
   flex: 0 0 auto;
 }
 
+/* Quick action buttons */
+.quickActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0e9df;
+}
+
+.quickBtn {
+  flex: 0 0 auto;
+  height: 26px !important;
+  width: 26px !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  border-radius: 5px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 .scrollArea {
   min-height: 0;
   flex: 1 1 auto;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 14px 18px;
+  padding: 2px 0 18px;
   scrollbar-color: #d7c3a7 transparent;
   scrollbar-width: thin;
 }
 
 .scrollArea::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .scrollArea::-webkit-scrollbar-thumb {
@@ -75,16 +97,30 @@
   background: #d7c3a7;
 }
 
+/* ── Inspector groups ─────────────────────────────────────────────────────── */
 .group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px 0;
+  gap: 0;
+  padding: 0;
   border-bottom: 1px solid #f0e9df;
 }
 
 .group:last-child {
   border-bottom: 0;
+}
+
+/* Group header row */
+.group > div:first-child {
+  padding: 9px 14px 8px;
+}
+
+/* Group body */
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 14px 12px;
 }
 
 .groupTitle {
@@ -96,6 +132,7 @@
   text-transform: uppercase;
 }
 
+/* ── Fields ──────────────────────────────────────────────────────────────── */
 .field {
   display: flex;
   min-width: 0;
@@ -131,18 +168,75 @@
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  padding-inline: 8px;
+  padding-inline: 7px;
   border: 1px solid #ebd9be;
   border-left: 0;
   background: #faf8f4;
   color: #765d48;
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .colorControl {
   width: 100%;
 }
 
+/* ── Checkbox row for playback controls ──────────────────────────────────── */
+.checkboxRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.checkboxRow > label {
+  flex: 1 1 auto;
+}
+
+/* ── Responsive hints ────────────────────────────────────────────────────── */
+.responsiveHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.responsiveLabel {
+  font-size: 10px;
+  color: #765d48;
+}
+
+.devicePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.devicePill_mobile {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.devicePill_tablet {
+  background: #fef9c3;
+  color: #92400e;
+}
+
+.devicePill_desktop {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.hintText {
+  font-size: 10px !important;
+  color: #9a7b60 !important;
+  line-height: 1.4 !important;
+}
+
+/* ── Ant Design overrides scoped to panel ─────────────────────────────────── */
 .panel :global(.ant-input),
 .panel :global(.ant-input-affix-wrapper),
 .panel :global(.ant-select-selector),
@@ -189,6 +283,174 @@
   border-radius: 5px;
 }
 
+/* Slider compact */
+.panel :global(.ant-slider) {
+  margin: 0;
+}
+
+.panel :global(.ant-slider-rail) {
+  background: #ebd9be;
+}
+
+.panel :global(.ant-slider-track) {
+  background: #9a5a00;
+}
+
+.panel :global(.ant-slider-handle::after) {
+  box-shadow: 0 0 0 2px #9a5a00;
+}
+
+/* InputNumber with addonAfter (opacity/slider) */
+.panel :global(.ant-input-number-group-addon) {
+  font-size: 10px;
+  padding: 0 5px;
+  color: #765d48;
+  background: #faf8f4;
+  border-color: #ebd9be;
+}
+
+/* ── Style Mode Card ─────────────────────────────────────────────────────── */
+.styleModeContainer {
+  margin: 10px 14px 6px;
+  padding: 10px 12px;
+  background: #faf7f2;
+  border: 1px solid #ebd9be;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.styleModeHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.styleModeLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3a2313;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.styleModeBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.styleModeBadgeInherit {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.styleModeBadgeCustom {
+  background: #e0e7ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.inheritedNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #ebd9be;
+  border-radius: 6px;
+  font-size: 10px;
+  color: #765d48;
+  line-height: 1.4;
+}
+
+.inheritedDot {
+  width: 6px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #9a5a00;
+  flex-shrink: 0;
+}
+
+.inheritedBadge {
+  font-size: 9px;
+  color: #9a5a00;
+  background: #fef7ed;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid #fcd34d;
+}
+
+/* ── Section Overview List (when no selection) ─────────────────────────── */
+.sectionOverviewList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionOverviewItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  background: #faf8f5;
+  border: 1px solid #ebd9be;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sectionOverviewItem:hover {
+  background: #f5eee3;
+  border-color: #9a5a00;
+}
+
+.sectionOverviewName {
+  font-size: 11px;
+  font-weight: 500;
+  color: #3a2313;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sectionOverviewMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sectionOverviewCount {
+  font-size: 10px;
+  color: #765d48;
+  background: #f0e6d6;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+/* ── Alignment segmented control ────────────────────────────────────────── */
+.segmentedControl :global(.ant-segmented-item-selected) {
+  background: #9a5a00 !important;
+  color: #ffffff !important;
+}
+
+.panel :global(.ant-segmented) {
+  background: #f3ece1;
+  padding: 2px;
+  border-radius: 6px;
+}
+
+.panel :global(.ant-segmented-item-label) {
+  min-height: 24px;
+  line-height: 24px;
+  font-size: 11px;
+  padding: 0 8px;
+}
+
 @media (max-width: 520px) {
   .header {
     padding-inline: 12px;
@@ -197,4 +459,52 @@
   .scrollArea {
     padding-inline: 12px;
   }
+
+  .group > div:first-child {
+    padding-inline: 12px;
+  }
+
+  .groupBody {
+    padding-inline: 12px;
+  }
+}
+
+/* ── Elementor 3 Tabs (Content, Style, Advanced) ────────────────────────── */
+.tabBar {
+  display: flex;
+  background: #faf6f0;
+  border-bottom: 1px solid #ebd9be;
+  padding: 4px 8px 0;
+  gap: 4px;
+}
+
+.tabBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #765d48;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tabBtn:hover {
+  color: #9a5a00;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.tabBtnActive {
+  color: #9a5a00;
+  background: #fff;
+  border-color: #ebd9be;
+  border-bottom: 1px solid #fff;
+  margin-bottom: -1px;
 }
