@@ -59,6 +59,7 @@ func main() {
 		AppEnv:             cfg.AppEnv,
 	}
 	handlers.MountDriveRoutes(r, pool, driveCfg)
+	handlers.MountReportRoutes(r, pool, cfg.JWTSecret)
 
 	fmt.Println("Invitation Backend running on http://localhost:8080")
 

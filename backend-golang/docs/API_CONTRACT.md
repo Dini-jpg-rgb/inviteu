@@ -2018,6 +2018,82 @@ Modul Invitation Media memfasilitasi partner untuk mengunggah gambar galeri (`im
    - Apabila frontend memanggil endpoint streaming lintas origin (misalnya melalui elemen `<audio>`/`<img>` dengan `crossorigin` atau `fetch` dengan header `Range`), reverse proxy / CORS perlu mengizinkan header request `Range` dan `If-None-Match` serta mengekspos header response `Accept-Ranges`, `Content-Range`, `Content-Length`, dan `ETag`.
    - Endpoint publik ini belum memiliki middleware rate limiter di aplikasi Go; pembatasan laju (*rate limiting*) terhadap scraping/penyalahgunaan bandwidth sebaiknya diterapkan di level reverse proxy / API Gateway / CDN (bersama pemanfaatan `Cache-Control: public, max-age=300` dan `ETag`).
 
+---
+
+## 16. Admin Reports (Sales & Revenue)
+
+### 16.1. Get Sales & Revenue Report
+
+- **Method**: `GET`
+- **Path**: `/api/v1/admin/reports/sales-revenue`
+- **Autentikasi**: Bearer Token (`AuthRequired` + `RequireRole("admin")`)
+- **Otorisasi**: Hanya `admin` (murni baca dan agregasi dari `payments` dan `order_items`, tidak menulis ke tabel mana pun).
+
+#### Query Parameters
+
+| Parameter | Tipe | Wajib | Default | Keterangan |
+| :--- | :--- | :--- | :--- | :--- |
+| `from` | string (`YYYY-MM-DD`) | Tidak | 29 hari sebelum hari ini | Tanggal awal rentang laporan (inklusif mulai pukul `00:00:00`), dikirim ke SQL sebagai string. Jika `from` dikirim, `to` juga wajib dikirim. |
+| `to` | string (`YYYY-MM-DD`) | Tidak | Hari ini | Tanggal akhir rentang laporan (inklusif hingga akhir hari `< to + 1 day`). Maksimal panjang rentang 366 hari. |
+| `group_by` | string | Tidak | `"week"` | Pengelompokan periode: `"day"`, `"week"`, atau `"month"`. Untuk `"week"`, bucket berdurasi 7 hari dimulai dari `from`, dan bucket terakhir dipotong pada tanggal `to`. |
+| `type` | string | Tidak | `"all"` | Filter jenis pendapatan: `"all"`, `"package"` (`item_type = 'package'`), atau `"addon"` (`item_type = 'addon'`, mencakup seluruh add-on). |
+| `q` | string | Tidak | `""` | Pencarian opsional pada nama package/add-on (`order_items.item_name`). Maksimum 100 karakter (lebih dari 100 karakter menghasilkan `400 Bad Request`). Pencocokan bersifat sebagian (*substring*), tidak peka huruf besar-kecil (*case-insensitive* `ILIKE`), serta karakter `%`, `_`, dan `\` di-escape sehingga diperlakukan sebagai karakter literal (bukan wildcard SQL). Nilai kosong atau hanya spasi memberikan hasil yang sama dengan tanpa parameter `q`. |
+
+#### Response 200 OK
+
+```json
+{
+  "success": true,
+  "message": "Sales and revenue report retrieved successfully",
+  "data": {
+    "summary": {
+      "successful_transactions": 1248,
+      "total_amount": 148600000,
+      "package_revenue": 120700000,
+      "addon_revenue": 27900000,
+      "average_amount": 119071,
+      "previous_period": {
+        "transactions_change_percent": 8.1,
+        "amount_change_percent": 12.4
+      }
+    },
+    "periods": [
+      {
+        "label": "15 - 21 Okt",
+        "start": "2026-10-15",
+        "end": "2026-10-21",
+        "transactions": 168,
+        "package_revenue": 17400000,
+        "addon_revenue": 3600000,
+        "total": 21000000,
+        "average": 125000
+      }
+    ],
+    "best_period": {
+      "start": "2026-11-05",
+      "end": "2026-11-11",
+      "total": 27500000
+    }
+  }
+}
+```
+
+#### Aturan Perhitungan & Catatan Arsitektur
+1. **Sumber Angka & Status**:
+   - Hanya menghitung transaksi dengan `payments.status = 'paid'` dan `payments.paid_at IS NOT NULL`.
+   - Seluruh angka pendapatan dihitung dari `order_items.subtotal` yang dibulatkan ke integer Rupiah (`int64`), dengan `total = package_revenue + addon_revenue` dan jumlah transaksi `COUNT(DISTINCT payments.id)`.
+2. **Perilaku Filter Pencarian `q` terhadap `summary`, `previous_period`, `periods`, dan `best_period`**:
+   - Bila parameter `q` diberikan (tidak kosong setelah trim), filter `order_items.item_name ILIKE $q ESCAPE '\'` diterapkan secara **konsisten di seluruh bagian laporan**:
+     - **`summary`**: Hanya menghitung `successful_transactions`, `package_revenue`, `addon_revenue`, `total_amount`, dan `average_amount` dari item yang namanya cocok dengan `q` pada rentang `[from, to]`.
+     - **`previous_period`**: Perhitungan `transactions_change_percent` dan `amount_change_percent` juga hanya membandingkan item yang cocok dengan `q` pada rentang `[from, to]` terhadap item yang cocok dengan `q` pada periode sebelumnya (`[from - N days, from - 1 day]`).
+     - **`periods` & `best_period`**: Angka `transactions`, `package_revenue`, `addon_revenue`, `total`, dan `average` di setiap bucket periode (serta pemilihan `best_period`) hanya menjumlahkan item yang namanya cocok dengan `q`. Bucket tanggal yang tidak memiliki transaksi yang cocok tetap dikembalikan dengan nilai `0`.
+3. **Perbandingan Periode Sebelumnya (`previous_period`)**:
+   - Membandingkan rentang `[from, to]` (berdurasi $N$ hari) terhadap rentang $N$ hari tepat sebelumnya (`[from - N days, from - 1 day]`).
+   - Bila nilai pada periode sebelumnya adalah `0`, `transactions_change_percent` / `amount_change_percent` bernilai `null`.
+4. **Periode Terbaik (`best_period`)**:
+   - Diambil dari bucket pada `periods` dengan nilai `total` tertinggi (`total > 0`). Bila seluruh bucket bernilai `0`, `best_period` bernilai `null`.
+
+
 
 
 
