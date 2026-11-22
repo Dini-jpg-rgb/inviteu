@@ -1,127 +1,897 @@
-import React from "react";
-import Link from "next/link";
+"use client";
+
+import React, { useMemo, useState, useEffect, Suspense } from "react";
 import Image from "next/image";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { TEMPLATES_REGISTRY } from "./themes/registry";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  LayoutGrid,
+  List as ListIcon,
+  Plus,
+  Upload,
+  ExternalLink,
+  MoreVertical,
+  Eye,
+  Edit,
+  Copy,
+  Trash2,
+  Send,
+  GitBranch,
+  Search,
+} from "lucide-react";
+import {
+  App as AntdApp,
+  Button,
+  Card,
+  Col,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Pagination,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
+import type { ColumnsType } from "antd/es/table";
+import type { MenuProps } from "antd";
+import { DesignerPageHeader } from "../components/DesignerPageHeader";
+import {
+  LocalDesignerTemplate,
+  useDesignerTemplates,
+} from "../DesignerTemplatesContext";
+import { DesignerStatusTag } from "../components/DesignerStatusTag";
+import { ImportJSONModal } from "@/components/builder/ImportJSONModal";
+import { ExternalDesignImportModal } from "@/components/builder/ExternalDesignImportModal";
+import { getAllGlobalThemePresets } from "@/lib/theme-system";
+import { InviteUTemplateJSON } from "@/lib/template-json";
+import styles from "../../designer-workspace.module.css";
+
+const { Text, Title } = Typography;
+
+const PAGE_SIZE = 9;
+type StatusFilter =
+  | "all"
+  | "draft"
+  | "in_review"
+  | "approved"
+  | "rejected"
+  | "revision";
+type TierFilter = "all" | "basic" | "medium" | "pro";
+type SortOption =
+  | "created_desc"
+  | "updated_desc"
+  | "name_asc"
+  | "name_desc";
+
+function normalizeStatus(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "pending_review" || normalized === "pending") {
+    return "in_review";
+  }
+  if (normalized === "published" || normalized === "active") {
+    return "approved";
+  }
+  if (normalized === "revisi") {
+    return "revision";
+  }
+  return normalized;
+}
+
+function formatUpdatedAt(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+}
+
+// Helper untuk menu aksi sesuai status template
+function getActionItems(
+  template: LocalDesignerTemplate,
+  callbacks: {
+    onDuplicate: (template: LocalDesignerTemplate) => void;
+    onRename: (template: LocalDesignerTemplate) => void;
+    onCreateRevision: (template: LocalDesignerTemplate) => void;
+    onSubmit: (template: LocalDesignerTemplate) => void;
+    onDelete: (template: LocalDesignerTemplate) => void;
+  }
+): MenuProps["items"] {
+  const status = normalizeStatus(template.status);
+  const isDraft = status === "draft";
+  const isPublished = status === "approved";
+  const isRejected = status === "rejected";
+  const isRevision = status === "revision";
+
+  const canEdit = isDraft || isRejected || isRevision;
+  const canSubmit = isDraft || isRejected || isRevision;
+  const canCreateRevision = isPublished || isRejected || isRevision;
+  const canDelete = isDraft || isRejected || isRevision;
+
+  return [
+    {
+      key: "preview",
+      icon: <Eye size={15} strokeWidth={1.8} />,
+      label: <Link href={`/designer/templates/${template.id}`}>Preview</Link>,
+    },
+    ...(canEdit
+      ? [
+          {
+            key: "edit",
+            icon: <Edit size={15} strokeWidth={1.8} />,
+            label: (
+              <Link href={`/designer/templates/${template.id}/edit`}>
+                Edit di Builder
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    {
+      key: "rename",
+      icon: <Edit size={15} strokeWidth={1.8} />,
+      label: "Ganti Nama",
+      onClick: () => callbacks.onRename(template),
+    },
+    {
+      key: "duplicate",
+      icon: <Copy size={15} strokeWidth={1.8} />,
+      label: "Duplicate",
+      onClick: () => callbacks.onDuplicate(template),
+    },
+    ...(canCreateRevision
+      ? [
+          {
+            key: "create-revision",
+            icon: <GitBranch size={15} strokeWidth={1.8} />,
+            label: "Create Revision Draft",
+            onClick: () => callbacks.onCreateRevision(template),
+          },
+        ]
+      : []),
+    ...(canSubmit
+      ? [
+          {
+            key: "submit",
+            icon: <Send size={15} strokeWidth={1.8} />,
+            label: "Submit for Review",
+            onClick: () => callbacks.onSubmit(template),
+          },
+        ]
+      : []),
+    ...(canDelete
+      ? [
+          { type: "divider" as const },
+          {
+            key: "delete",
+            icon: <Trash2 size={15} strokeWidth={1.8} />,
+            danger: true,
+            label: "Delete",
+            onClick: () => callbacks.onDelete(template),
+          },
+        ]
+      : []),
+  ];
+}
+
+// 1. Grid View Template Card Component
+function TemplateCard({
+  template,
+  preloadThumbnail,
+  onDuplicate,
+  onRename,
+  onCreateRevision,
+  onDelete,
+  onSubmit,
+}: {
+  template: LocalDesignerTemplate;
+  preloadThumbnail: boolean;
+  onDuplicate: (template: LocalDesignerTemplate) => void;
+  onRename: (template: LocalDesignerTemplate) => void;
+  onCreateRevision: (template: LocalDesignerTemplate) => void;
+  onDelete: (template: LocalDesignerTemplate) => void;
+  onSubmit: (template: LocalDesignerTemplate) => void;
+}) {
+  const [thumbnailError, setThumbnailError] = useState(false);
+  const status = normalizeStatus(template.status);
+  const isEditable = status === "draft" || status === "rejected" || status === "revision";
+
+  const actionItems = getActionItems(template, {
+    onDuplicate,
+    onRename,
+    onCreateRevision,
+    onSubmit,
+    onDelete,
+  });
+
+  const tier = (template.packageTier || "basic").toLowerCase();
+
+  return (
+    <Card
+      hoverable
+      className="h-full overflow-hidden rounded-[10px] border-[#EAE5DF] bg-white transition-all hover:border-[#FFAD38] shadow-xs hover:shadow-md"
+      styles={{ body: { padding: 16 } }}
+      cover={
+        <Link
+          href={`/designer/templates/${template.id}`}
+          aria-label={`Preview ${template.name}`}
+          className="block"
+        >
+          <div className={styles.templateThumbnail}>
+            {template.thumbnail && !thumbnailError ? (
+              <Image
+                src={template.thumbnail}
+                alt={`Thumbnail ${template.name}`}
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                loading={preloadThumbnail ? "eager" : "lazy"}
+                className="object-cover"
+                unoptimized
+                onError={() => setThumbnailError(true)}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-[#99918A] bg-[#F7F6F4]">
+                Thumbnail belum tersedia
+              </div>
+            )}
+            <div className="absolute left-2.5 top-2.5 z-10">
+              <Tag
+                color={tier === "pro" ? "gold" : tier === "medium" ? "cyan" : "default"}
+                className="!mr-0 !font-bold shadow-xs uppercase !text-[10px] !rounded-[4px]"
+              >
+                {tier}
+              </Tag>
+            </div>
+            <div className="absolute right-2.5 top-2.5 z-10">
+              <DesignerStatusTag status={template.status} />
+            </div>
+          </div>
+        </Link>
+      }
+    >
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <Link href={`/designer/templates/${template.id}`}>
+            <Title
+              level={5}
+              className="!mb-0.5 !truncate !font-['Playfair_Display'] !text-[16px] !font-semibold !text-[#422B1C] hover:!text-[#FFAD38]"
+            >
+              {template.name}
+            </Title>
+          </Link>
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <Text className="truncate text-xs text-[#99918A]">
+              {template.category_name}
+            </Text>
+            <span className="text-stone-300">·</span>
+            <Tag color="orange" className="!mr-0 !text-[10px] !px-1.5 !py-0 !rounded-[4px]">
+              {template.themeId ? template.themeId.replace(/^theme-/, "") : template.style || "Botanical"}
+            </Tag>
+          </div>
+        </div>
+        <Dropdown menu={{ items: actionItems }} trigger={["click"]}>
+          <Button
+            type="text"
+            icon={<MoreVertical size={16} strokeWidth={1.8} />}
+            size="small"
+            className="text-[#422B1C] hover:text-[#FFAD38]"
+            aria-label={`Aksi untuk ${template.name}`}
+          />
+        </Dropdown>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between border-t border-[#EAE5DF] pt-2.5 text-xs">
+        <Text className="truncate text-[11px] text-[#99918A]">
+          Diedit: {formatUpdatedAt(template.updated_at)}
+        </Text>
+        <Space size={4}>
+          {isEditable ? (
+            <Link href={`/designer/templates/${template.id}/edit`}>
+              <Button type="link" size="small" className="!px-1.5 !text-xs !text-[#FFAD38] hover:!text-[#D48816] font-semibold">
+                Edit
+              </Button>
+            </Link>
+          ) : (
+            <Link href={`/designer/templates/${template.id}`}>
+              <Button type="link" size="small" className="!px-1.5 !text-xs !text-[#422B1C] hover:!text-[#FFAD38]">
+                Detail
+              </Button>
+            </Link>
+          )}
+        </Space>
+      </div>
+    </Card>
+  );
+}
+
+// 2. Main Page Content Component
+function TemplatesPageContent() {
+  const { message } = AntdApp.useApp();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const {
+    templates,
+    duplicateTemplate,
+    renameTemplate,
+    createRevision,
+    deleteTemplate,
+    submitForReview,
+    importTemplate,
+  } = useDesignerTemplates();
+
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [search, setSearch] = useState("");
+  const initialStatus = (searchParams.get("status") as StatusFilter) || "all";
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialStatus);
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const [themeFilter, setThemeFilter] = useState<string>("all");
+  const [sortOption, setSortOption] = useState<SortOption>("updated_desc");
+  const [page, setPage] = useState(1);
+
+  // Sync query param changes
+  useEffect(() => {
+    const statusParam = searchParams.get("status") as StatusFilter;
+    if (statusParam && ["all", "draft", "in_review", "approved", "rejected", "revision"].includes(statusParam)) {
+      setStatusFilter(statusParam);
+      setPage(1);
+    }
+  }, [searchParams]);
+
+  // Modals state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExternalImportOpen, setIsExternalImportOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<LocalDesignerTemplate | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+
+  // Kategori unik untuk dropdown filter
+  const categories = useMemo(
+    () => [...new Set(templates.map((t) => t.category_name))],
+    [templates]
+  );
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  const globalThemes = getAllGlobalThemePresets();
+
+  // Status counts for top tabs
+  const statusCounts = useMemo(() => {
+    return {
+      all: templates.length,
+      draft: templates.filter((t) => normalizeStatus(t.status) === "draft").length,
+      in_review: templates.filter((t) => normalizeStatus(t.status) === "in_review").length,
+      revision: templates.filter(
+        (t) =>
+          normalizeStatus(t.status) === "revision" ||
+          (normalizeStatus(t.status) === "rejected" && Boolean(t.rejection_note))
+      ).length,
+      approved: templates.filter((t) => normalizeStatus(t.status) === "approved").length,
+    };
+  }, [templates]);
+
+  // Filtering & Sorting
+  const filteredTemplates = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = templates.filter((template) => {
+      const matchesSearch =
+        template.name.toLowerCase().includes(query) ||
+        template.slug.toLowerCase().includes(query);
+
+      const status = normalizeStatus(template.status);
+      let matchesStatus = true;
+      if (statusFilter === "draft") matchesStatus = status === "draft";
+      else if (statusFilter === "in_review") matchesStatus = status === "in_review";
+      else if (statusFilter === "approved") matchesStatus = status === "approved";
+      else if (statusFilter === "rejected") matchesStatus = status === "rejected";
+      else if (statusFilter === "revision") {
+        matchesStatus =
+          status === "revision" ||
+          (status === "rejected" && Boolean(template.rejection_note));
+      }
+
+      const matchesCategory =
+        categoryFilter === "all" || template.category_name === categoryFilter;
+
+      const templateTier = (template.packageTier || "basic").toLowerCase();
+      const matchesTier =
+        tierFilter === "all" || templateTier === tierFilter;
+
+      const templateTheme = template.themeId || template.themeCategory || template.style;
+      const matchesTheme =
+        themeFilter === "all" || templateTheme === themeFilter;
+
+      return matchesSearch && matchesStatus && matchesCategory && matchesTier && matchesTheme;
+    });
+
+    return filtered.sort((a, b) => {
+      switch (sortOption) {
+        case "created_desc":
+          return (
+            new Date(b.created_at || b.updated_at).getTime() -
+            new Date(a.created_at || a.updated_at).getTime()
+          );
+        case "updated_desc":
+          return (
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          );
+        case "name_asc":
+          return a.name.localeCompare(b.name);
+        case "name_desc":
+          return b.name.localeCompare(a.name);
+        default:
+          return (
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          );
+      }
+    });
+  }, [templates, search, statusFilter, categoryFilter, tierFilter, themeFilter, sortOption]);
+
+  // Actions handlers
+  const handleDuplicate = (template: LocalDesignerTemplate) => {
+    const newId = duplicateTemplate(template.id);
+    if (newId) {
+      message.success(`Template berhasil diduplikasi.`);
+    }
+  };
+
+  const handleOpenRename = (template: LocalDesignerTemplate) => {
+    setRenameTarget(template);
+    setRenameInput(template.name);
+  };
+
+  const handleConfirmRename = () => {
+    if (!renameTarget) return;
+    const trimmed = renameInput.trim();
+    if (!trimmed) {
+      message.error("Nama template tidak boleh kosong.");
+      return;
+    }
+    renameTemplate(renameTarget.id, trimmed);
+    message.success(`Nama template berhasil diubah menjadi "${trimmed}".`);
+    setRenameTarget(null);
+  };
+
+  const handleCreateRevision = (template: LocalDesignerTemplate) => {
+    const newId = createRevision(template.id);
+    if (newId) {
+      message.success(`Revisi baru untuk "${template.name}" berhasil dibuat.`);
+      router.push(`/designer/templates/${newId}/edit`);
+    }
+  };
+
+  const handleDelete = (template: LocalDesignerTemplate) => {
+    Modal.confirm({
+      title: "Hapus template?",
+      content: `"${template.name}" akan dihapus dari data template Anda.`,
+      okText: "Hapus",
+      cancelText: "Batal",
+      okButtonProps: { danger: true },
+      onOk: () => {
+        deleteTemplate(template.id);
+        message.success("Template berhasil dihapus.");
+      },
+    });
+  };
+
+  const handleSubmit = (template: LocalDesignerTemplate) => {
+    Modal.confirm({
+      title: "Submit for Review?",
+      content: `Template "${template.name}" akan diajukan ke tim kurator untuk diperiksa. Status akan berubah menjadi Pending Review.`,
+      okText: "Submit",
+      cancelText: "Batal",
+      onOk: () => {
+        submitForReview(template.id);
+        message.success("Template berhasil diajukan untuk review.");
+      },
+    });
+  };
+
+  const handleImportNewTemplate = (templateJSON: InviteUTemplateJSON) => {
+    const newId = importTemplate(templateJSON);
+    message.success(`Template berhasil diimpor sebagai Template #${newId}.`);
+    router.push(`/designer/templates/${newId}/edit`);
+  };
+
+  // Pagination slice
+  const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedTemplates = filteredTemplates.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
+
+  // Table Columns for List View
+  const listColumns: ColumnsType<LocalDesignerTemplate> = [
+    {
+      title: "Template",
+      key: "template",
+      render: (_, template) => (
+        <div className="flex items-center gap-3">
+          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-[#EAE5DF] bg-[#F7F6F4]">
+            {template.thumbnail ? (
+              <Image
+                src={template.thumbnail}
+                alt={template.name}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-[10px] text-[#99918A]">
+                IU
+              </div>
+            )}
+          </div>
+          <div className="min-w-0">
+            <Link
+              href={`/designer/templates/${template.id}`}
+              className="block truncate font-semibold text-[#422B1C] hover:!text-[#FFAD38]"
+            >
+              {template.name}
+            </Link>
+            <div className="flex items-center gap-1.5 text-xs text-[#99918A]">
+              <span>{template.category_name}</span>
+              <span>·</span>
+              <Tag color="orange" className="!mr-0 !text-[10px] !px-1.5 !py-0">
+                {template.themeId ? template.themeId.replace(/^theme-/, "") : template.style || "Botanical"}
+              </Tag>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Tier",
+      dataIndex: "packageTier",
+      key: "tier",
+      width: 110,
+      render: (tier: string) => {
+        const val = (tier || "basic").toLowerCase();
+        return (
+          <Tag color={val === "pro" ? "gold" : val === "medium" ? "cyan" : "default"} className="!font-bold uppercase !text-[11px]">
+            {val}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 140,
+      render: (status: string) => <DesignerStatusTag status={status} />,
+    },
+    {
+      title: "Terakhir Diedit",
+      dataIndex: "updated_at",
+      key: "updated_at",
+      width: 180,
+      responsive: ["md"],
+      render: (dateStr: string) => (
+        <Text className="text-xs text-[#99918A]">
+          {formatUpdatedAt(dateStr)}
+        </Text>
+      ),
+    },
+    {
+      title: "Aksi",
+      key: "actions",
+      align: "right",
+      width: 140,
+      render: (_, template) => {
+        const status = normalizeStatus(template.status);
+        const isEditable =
+          status === "draft" || status === "rejected" || status === "revision";
+        const actionItems = getActionItems(template, {
+          onDuplicate: handleDuplicate,
+          onRename: handleOpenRename,
+          onCreateRevision: handleCreateRevision,
+          onSubmit: handleSubmit,
+          onDelete: handleDelete,
+        });
+
+        return (
+          <Space size={4}>
+            {isEditable ? (
+              <Link href={`/designer/templates/${template.id}/edit`}>
+                <Button size="small" type="primary" icon={<Edit size={14} strokeWidth={1.8} />}>
+                  Edit
+                </Button>
+              </Link>
+            ) : (
+              <Link href={`/designer/templates/${template.id}`}>
+                <Button size="small" icon={<Eye size={14} strokeWidth={1.8} />}>
+                  Preview
+                </Button>
+              </Link>
+            )}
+            <Dropdown menu={{ items: actionItems }} trigger={["click"]}>
+              <Button size="small" icon={<MoreVertical size={16} strokeWidth={1.8} />} />
+            </Dropdown>
+          </Space>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* 1. Header & Actions */}
+      <DesignerPageHeader
+        title="My Templates"
+        description="Pusat pengelolaan seluruh template undangan digital: edit di builder, pratinjau, dan ajukan kurasi."
+        actions={
+          <Space wrap>
+            <Button
+              icon={<GitBranch size={16} strokeWidth={1.8} />}
+              onClick={() => setIsExternalImportOpen(true)}
+            >
+              Import Eksternal (Figma/Elementor)
+            </Button>
+            <Button
+              icon={<Upload size={16} strokeWidth={1.8} />}
+              onClick={() => setIsImportModalOpen(true)}
+            >
+              Impor JSON
+            </Button>
+            <Button
+              type="primary"
+              icon={<Plus size={16} strokeWidth={1.8} />}
+              onClick={() => router.push("/designer/templates/create")}
+              className="!bg-[#FFAD38] !text-[#3D2516] !font-semibold hover:!bg-[#F5A623] !border-[#FFAD38] shadow-xs"
+            >
+              Buat Template Baru
+            </Button>
+          </Space>
+        }
+      />
+
+      {/* 2. Status Segmented Tabs + Compact Toolbar */}
+      <div className="space-y-3">
+        {/* Top-level Status Tabs */}
+        <div className="flex items-center justify-between gap-3 overflow-x-auto pb-1">
+          <Segmented
+            value={statusFilter}
+            onChange={(val) => {
+              setStatusFilter(val as StatusFilter);
+              setPage(1);
+            }}
+            className="p-1 bg-white border border-[#EAE5DF] rounded-[10px] shadow-xs"
+            options={[
+              { value: "all", label: `Semua (${statusCounts.all})` },
+              { value: "draft", label: `Draft (${statusCounts.draft})` },
+              { value: "in_review", label: `Pending Review (${statusCounts.in_review})` },
+              { value: "revision", label: `Perlu Revisi (${statusCounts.revision})` },
+              { value: "approved", label: `Published (${statusCounts.approved})` },
+            ]}
+          />
+        </div>
+
+        {/* Compact Filters & Search Bar */}
+        <Card className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs" styles={{ body: { padding: "12px 16px" } }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Search & Filter Options */}
+            <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+              <div className="w-full sm:w-64">
+                <Input
+                  allowClear
+                  prefix={<Search size={14} className="text-[#99918A]" />}
+                  placeholder="Cari nama template..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="!rounded-lg"
+                />
+              </div>
+
+              <Select
+                className="w-32"
+                value={tierFilter}
+                onChange={(val: TierFilter) => {
+                  setTierFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "Semua Tier" },
+                  { value: "basic", label: "Basic" },
+                  { value: "medium", label: "Medium" },
+                  { value: "pro", label: "Pro" },
+                ]}
+              />
+
+              <Select
+                className="w-36"
+                value={categoryFilter}
+                onChange={(val) => {
+                  setCategoryFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "Semua Kategori" },
+                  ...categories.map((c) => ({ value: c, label: c })),
+                ]}
+              />
+
+              <Select
+                className="w-40"
+                value={themeFilter}
+                onChange={(val) => {
+                  setThemeFilter(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "all", label: "Semua Tema" },
+                  ...globalThemes.map((t) => ({ value: t.id, label: t.name })),
+                ]}
+              />
+            </div>
+
+            {/* Right: Sort & View Mode */}
+            <div className="flex items-center gap-2.5">
+              <Select
+                className="w-36"
+                value={sortOption}
+                onChange={(val: SortOption) => {
+                  setSortOption(val);
+                  setPage(1);
+                }}
+                options={[
+                  { value: "updated_desc", label: "Last Edited" },
+                  { value: "created_desc", label: "Newest" },
+                  { value: "name_asc", label: "Name (A–Z)" },
+                  { value: "name_desc", label: "Name (Z–A)" },
+                ]}
+              />
+
+              <Segmented
+                value={viewMode}
+                onChange={(val) => setViewMode(val as "grid" | "list")}
+                options={[
+                  {
+                    value: "grid",
+                    icon: <LayoutGrid size={15} strokeWidth={1.8} />,
+                  },
+                  {
+                    value: "list",
+                    icon: <ListIcon size={15} strokeWidth={1.8} />,
+                  },
+                ]}
+              />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* 3. Main Templates Display: Grid or List */}
+      {paginatedTemplates.length > 0 ? (
+        <>
+          {viewMode === "grid" ? (
+            <div className={styles.templateGrid}>
+              {paginatedTemplates.map((template, index) => (
+                <div key={template.id} className="min-w-0">
+                  <TemplateCard
+                    template={template}
+                    preloadThumbnail={index === 0}
+                    onDuplicate={handleDuplicate}
+                    onRename={handleOpenRename}
+                    onCreateRevision={handleCreateRevision}
+                    onDelete={handleDelete}
+                    onSubmit={handleSubmit}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Card
+              className="overflow-hidden rounded-[10px] border-[#EAE5DF] bg-white shadow-xs"
+              styles={{ body: { padding: 0 } }}
+            >
+              <Table<LocalDesignerTemplate>
+                rowKey="id"
+                columns={listColumns}
+                dataSource={paginatedTemplates}
+                pagination={false}
+              />
+            </Card>
+          )}
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between border-t border-[#EAE5DF] pt-4">
+            <Text className="text-xs text-[#99918A]">
+              Menampilkan {paginatedTemplates.length} dari{" "}
+              {filteredTemplates.length} template
+            </Text>
+            <Pagination
+              current={currentPage}
+              pageSize={PAGE_SIZE}
+              total={filteredTemplates.length}
+              showSizeChanger={false}
+              onChange={(newPage) => setPage(newPage)}
+            />
+          </div>
+        </>
+      ) : (
+        <Card className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs py-12 text-center">
+          <Empty
+            description={
+              templates.length
+                ? "Tidak ada template yang cocok dengan filter pencarian Anda."
+                : "Belum ada template yang dibuat. Buat template pertama Anda sekarang!"
+            }
+          >
+            <Button
+              type="primary"
+              icon={<Plus size={16} strokeWidth={1.8} />}
+              onClick={() => router.push("/designer/templates/create")}
+              className="!bg-[#FFAD38] !text-[#3D2516] !font-semibold hover:!bg-[#F5A623] !border-[#FFAD38] shadow-xs"
+            >
+              Buat Template Baru
+            </Button>
+          </Empty>
+        </Card>
+      )}
+
+      {/* Rename Modal */}
+      {renameTarget && (
+        <Modal
+          open={Boolean(renameTarget)}
+          onCancel={() => setRenameTarget(null)}
+          title="Ganti Nama Template"
+          okText="Simpan Nama"
+          cancelText="Batal"
+          onOk={handleConfirmRename}
+        >
+          <div className="space-y-3 py-2">
+            <Text className="text-xs text-[#99918A] block">
+              Masukkan nama baru untuk template <strong>{renameTarget.name}</strong>:
+            </Text>
+            <Input
+              value={renameInput}
+              onChange={(e) => setRenameInput(e.target.value)}
+              onPressEnter={handleConfirmRename}
+              placeholder="Nama template..."
+              maxLength={80}
+              autoFocus
+            />
+          </div>
+        </Modal>
+      )}
+
+      {/* Import JSON Modal */}
+      <ImportJSONModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImportAsNewTemplate={handleImportNewTemplate}
+      />
+
+      {/* External Design Import Modal */}
+      <ExternalDesignImportModal
+        open={isExternalImportOpen}
+        onClose={() => setIsExternalImportOpen(false)}
+      />
+    </div>
+  );
+}
 
 export default function DesignerTemplatesPage() {
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Katalog Desain Template
-          </h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Daftar template undangan berbasis skema data JSON dan status persetujuan Admin (PRD v3.0 Bagian 19).
-          </p>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[300px] items-center justify-center p-8 text-xs text-[#99918A]">
+          Memuat template...
         </div>
-        <Link href="/designer/templates/builder">
-          <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white self-start sm:self-auto cursor-pointer">
-            + Buat Template Baru
-          </Button>
-        </Link>
-      </div>
-
-      {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {TEMPLATES_REGISTRY.map((tpl, index) => {
-          const isFirstCard = index === 0; // Mogran & Laura
-
-          return (
-            <Card
-              key={tpl.id}
-              className={`overflow-hidden transition-all duration-200 hover:shadow-lg flex flex-col justify-between ${
-                isFirstCard
-                  ? "ring-2 ring-emerald-500/80 border-emerald-200 dark:border-emerald-800"
-                  : ""
-              }`}
-            >
-              <div>
-                {/* Thumbnail Preview Area */}
-                <div className="relative w-full h-48 bg-zinc-100 overflow-hidden group">
-                  <Image
-                    src={tpl.thumbnail}
-                    alt={tpl.name}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent flex items-end p-4">
-                    <span className="text-white text-xs font-medium tracking-wide">
-                      {tpl.themeCategory}
-                    </span>
-                  </div>
-
-                  {isFirstCard && (
-                    <span className="absolute top-3 left-3 bg-emerald-600 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full shadow-md flex items-center space-x-1">
-                      <span>✨</span>
-                      <span>JSON Ready & Preview Aktif</span>
-                    </span>
-                  )}
-                </div>
-
-                {/* Card Content */}
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge
-                      variant={
-                        tpl.status === "Published"
-                          ? "success"
-                          : tpl.status === "Pending Review"
-                          ? "warning"
-                          : "destructive"
-                      }
-                    >
-                      {tpl.status}
-                    </Badge>
-                    <span className="text-xs font-mono text-zinc-400">
-                      v{tpl.version}
-                    </span>
-                  </div>
-
-                  <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100 hover:text-indigo-600 transition-colors">
-                    <Link href={`/designer/templates/${tpl.slug}`}>
-                      {tpl.name}
-                    </Link>
-                  </h3>
-                  <p className="text-xs text-zinc-500 mt-1 line-clamp-2">
-                    {tpl.description ||
-                      (tpl.slug === "wedding" || tpl.id === "template-wedding" || tpl.id === "template-130"
-                        ? "Nuansa alam botanis hijau sage, monogram kaligrafi, bingkai vintage mirror, RSVP, dan countdown."
-                        : "Template bertema elegan dan minimalis modern dengan layout fleksibel.")}
-                  </p>
-
-                  <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-400 flex justify-between">
-                    <span>Terakhir Diubah</span>
-                    <span>{tpl.createdAt}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="p-5 pt-0 mt-2 flex gap-2">
-                <Link
-                  href={`/designer/templates/${tpl.slug}`}
-                  className="flex-1 inline-flex items-center justify-center space-x-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 py-2 px-3 rounded-md text-xs font-semibold transition-colors"
-                >
-                  <span>👁️</span>
-                  <span>Pratinjau</span>
-                </Link>
-                <Link
-                  href={`/designer/templates/builder?theme=${tpl.slug}`}
-                  className="flex-1 inline-flex items-center justify-center space-x-1.5 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-3 rounded-md text-xs font-semibold shadow-xs transition-colors"
-                >
-                  <span>🎨</span>
-                  <span>Edit Builder</span>
-                </Link>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-    </div>
+      }
+    >
+      <TemplatesPageContent />
+    </Suspense>
   );
 }

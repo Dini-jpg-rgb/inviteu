@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { CheckOutlined, CloseOutlined, SearchOutlined } from "@ant-design/icons";
 import { weddingTheme, TemplateTheme } from "../themes/wedding";
 
 interface MogranLauraInvitationProps {
@@ -331,8 +332,9 @@ export function MogranLauraInvitation({ themeData = weddingTheme }: MogranLauraI
                 className="object-cover group-hover:scale-105 transition-transform duration-300"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                <span className="opacity-0 group-hover:opacity-100 bg-white/80 text-zinc-800 text-[10px] px-2 py-0.5 rounded-full shadow-xs">
-                  🔍 Perbesar
+                <span className="opacity-0 group-hover:opacity-100 bg-white/80 text-zinc-800 text-[10px] px-2 py-0.5 rounded-full shadow-xs inline-flex items-center gap-1">
+                  <SearchOutlined className="text-[9px]" />
+                  <span>Perbesar</span>
                 </span>
               </div>
             </div>
@@ -353,8 +355,8 @@ export function MogranLauraInvitation({ themeData = weddingTheme }: MogranLauraI
 
         {isSubmitted ? (
           <div className="bg-[#fffcea] border border-[#848858] p-5 rounded-md max-w-[290px] mx-auto text-center animate-fade-in shadow-xs">
-            <div className="w-10 h-10 rounded-full bg-[#6f7f5f] text-white flex items-center justify-center mx-auto mb-2 text-lg">
-              ✓
+            <div className="w-10 h-10 rounded-full bg-[#6f7f5f] text-white flex items-center justify-center mx-auto mb-2 text-base">
+              <CheckOutlined />
             </div>
             <h4 className="font-semibold text-sm text-[#455633]">Konfirmasi Diterima!</h4>
             <p className="text-xs text-zinc-600 mt-1">
@@ -524,7 +526,7 @@ export function MogranLauraInvitation({ themeData = weddingTheme }: MogranLauraI
               onClick={() => setSelectedImage(null)}
               className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black"
             >
-              ✕
+              <CloseOutlined className="text-xs" />
             </button>
           </div>
         </div>

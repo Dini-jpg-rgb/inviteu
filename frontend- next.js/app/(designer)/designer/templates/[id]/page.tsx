@@ -1,443 +1,802 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { PhoneMockup } from "../components/PhoneMockup";
-import { MogranLauraInvitation } from "../components/MogranLauraInvitation";
-import { BaliTropicalInvitation } from "../components/BaliTropicalInvitation";
-import { EmeraldGoldBasicInvitation } from "../components/EmeraldGoldBasicInvitation";
-import { getTemplateBySlug, TEMPLATES_REGISTRY } from "../themes/registry";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { useParams, useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock,
+  Copy,
+  Trash2,
+  Monitor,
+  Edit,
+  AlertCircle,
+  FileEdit,
+  Maximize2,
+  Smartphone,
+  Send,
+  Tablet,
+} from "lucide-react";
+import {
+  Alert,
+  App as AntdApp,
+  Button,
+  Card,
+  Descriptions,
+  Divider,
+  Empty,
+  Modal,
+  Segmented,
+  Space,
+  Tag,
+  Timeline,
+  Typography,
+} from "antd";
+import { InvitationRenderer } from "@/components/invitations/InvitationRenderer";
+import { DesignerPageHeader } from "../../components/DesignerPageHeader";
+import { DesignerInvitationFrame } from "../../components/DesignerInvitationFrame";
+import { DesignerStatusTag } from "../../components/DesignerStatusTag";
+import { useDesignerTemplates } from "../../DesignerTemplatesContext";
+
+const { Text, Title } = Typography;
+
+type DevicePreviewMode = "phone" | "mobile" | "tablet" | "desktop";
+
+interface SectionFeedbackItem {
+  sectionName: string;
+  sectionType: string;
+  status: "issue" | "passed";
+  note: string;
+}
+
+interface ReviewHistoryItem {
+  date: string;
+  title: string;
+  actor: string;
+  status: "approved" | "rejected" | "in_review" | "draft";
+  note?: string;
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString("id-ID", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+}
+
+function normalizeStatus(status: string): string {
+  const normalized = status.toLowerCase();
+  if (normalized === "pending_review" || normalized === "pending") {
+    return "in_review";
+  }
+  if (normalized === "published" || normalized === "active") {
+    return "approved";
+  }
+  if (normalized === "revisi") {
+    return "revision";
+  }
+  return normalized;
+}
 
 export default function TemplatePreviewPage() {
+  const { message } = AntdApp.useApp();
   const params = useParams();
-  const slug = (params?.id as string) || "wedding";
+  const router = useRouter();
+  const id = String(params?.id ?? "");
 
-  const template = getTemplateBySlug(slug) || TEMPLATES_REGISTRY[0];
+  const {
+    getTemplate,
+    duplicateTemplate,
+    createRevision,
+    submitForReview,
+    deleteTemplate,
+  } = useDesignerTemplates();
 
-  // Control states: Zoom level starts at 60% as requested by user
-  const [zoomLevel, setZoomLevel] = useState<number>(60);
-  const [showJsonInspector, setShowJsonInspector] = useState<boolean>(false);
-  const [copiedJson, setCopiedJson] = useState<boolean>(false);
+  const template = getTemplate(id);
 
-  // Fullscreen Preview states
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [fullscreenMode, setFullscreenMode] = useState<"phone" | "mobile">("phone");
+  const [zoom, setZoom] = useState(100);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState(false);
+  const [previewMode, setPreviewMode] = useState<DevicePreviewMode>("phone");
 
-  // Handle ESC key to exit fullscreen
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (isFullscreen) setIsFullscreen(false);
-        if (showJsonInspector) setShowJsonInspector(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isFullscreen, showJsonInspector]);
+  const status = template ? normalizeStatus(template.status) : "draft";
+  const isDraft = status === "draft";
+  const isPending = status === "in_review";
+  const isPublished = status === "approved";
+  const isRejected = status === "rejected";
+  const isRevision = status === "revision";
 
-  const handleCopyJson = () => {
-    if (template.rawFigmaJson) {
-      navigator.clipboard.writeText(JSON.stringify(template.rawFigmaJson, null, 2));
-      setCopiedJson(true);
-      setTimeout(() => setCopiedJson(false), 2000);
+  const isLocked = isPending;
+  const isActionableForEdit = isDraft || isRejected || isRevision;
+  const hasRejectionOrRevision = isRejected || isRevision || Boolean(template?.rejection_note);
+
+  // Generate Review History timeline dynamically based on template state
+  const reviewHistory = useMemo<ReviewHistoryItem[]>(() => {
+    if (!template) return [];
+
+    const history: ReviewHistoryItem[] = [];
+
+    // Draft created
+    history.push({
+      date: formatDate(template.created_at),
+      title: "Draft Template Diinisialisasi",
+      actor: "Designer (Anda)",
+      status: "draft",
+      note: `Inisialisasi template versi ${template.version || "1.0"}.`,
+    });
+
+    if (isPending || isPublished || isRejected || isRevision) {
+      history.push({
+        date: formatDate(template.updated_at),
+        title: "Template Diajukan untuk Review",
+        actor: "Designer (Anda)",
+        status: "in_review",
+        note: "Pengajuan kurasi desain template ke Admin.",
+      });
+    }
+
+    if (isPublished) {
+      history.push({
+        date: formatDate(template.updated_at),
+        title: "Disetujui untuk Publikasi",
+        actor: "Admin Kurator InviteU",
+        status: "approved",
+        note: "Desain telah diverifikasi dan siap digunakan oleh Partner.",
+      });
+    } else if (hasRejectionOrRevision) {
+      history.push({
+        date: formatDate(template.updated_at),
+        title: "Keputusan: Perlu Revisi / Ditolak",
+        actor: "Admin Kurator InviteU",
+        status: "rejected",
+        note:
+          template.rejection_note ||
+          "Terdapat catatan kurasi yang perlu diperbaiki sebelum publikasi.",
+      });
+    }
+
+    return history.reverse();
+  }, [template, isPending, isPublished, isRejected, isRevision, hasRejectionOrRevision]);
+
+  // Generate section-specific feedback
+  const sectionFeedbacks = useMemo<SectionFeedbackItem[]>(() => {
+    if (!template) return [];
+
+    if (isRejected || isRevision || template.rejection_note) {
+      return [
+        {
+          sectionName: "Cover & Hero",
+          sectionType: "cover",
+          status: "issue",
+          note: "Kontras warna teks terhadap gambar latar kurang optimal. Disarankan menaikkan ketebalan teks atau menyesuaikan overlay.",
+        },
+        {
+          sectionName: "Event Details",
+          sectionType: "event_details",
+          status: "issue",
+          note: "Pastikan koordinat lokasi acara dan petunjuk Google Maps terisi dengan jelas.",
+        },
+        {
+          sectionName: "Penutup & Ucapan",
+          sectionType: "quote_banner",
+          status: "passed",
+          note: "Format teks dan tata letak quote sudah rapi dan sesuai standar.",
+        },
+      ];
+    }
+
+    return template.sections.map((section) => ({
+      sectionName: section.name,
+      sectionType: section.type,
+      status: "passed",
+      note: "Section memenuhi kriteria panduan desain InviteU.",
+    }));
+  }, [template, isRejected, isRevision]);
+
+  if (!template) {
+    return (
+      <Card className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs py-12 text-center">
+        <Empty description="Template tidak ditemukan pada data sesi ini.">
+          <Link href="/designer/templates">
+            <Button
+              type="primary"
+              icon={<ArrowLeft size={16} strokeWidth={1.8} />}
+              className="!bg-[#FFAD38] !text-[#3D2516] !font-semibold hover:!bg-[#F5A623] !border-[#FFAD38] shadow-xs !rounded-lg"
+            >
+              Kembali ke Template Management
+            </Button>
+          </Link>
+        </Empty>
+      </Card>
+    );
+  }
+
+  const adjustZoom = (delta: number) => {
+    setZoom((curr) => Math.min(130, Math.max(40, curr + delta)));
+  };
+
+  const handleDuplicate = () => {
+    const duplicatedId = duplicateTemplate(template.id);
+    if (duplicatedId) {
+      message.success("Template berhasil diduplikasi.");
+      router.push(`/designer/templates/${duplicatedId}`);
     }
   };
 
-  const adjustZoom = (delta: number) => {
-    setZoomLevel((prev) => Math.min(130, Math.max(40, prev + delta)));
+  const handleCreateRevision = () => {
+    const revId = createRevision(template.id);
+    if (revId) {
+      message.success("Revisi baru berhasil dibuat.");
+      router.push(`/designer/templates/${revId}/edit`);
+    }
   };
 
-  return (
-    <div className="space-y-6 pb-12">
-      {/* ============================================================== */}
-      {/* 1. TOP TOOLBAR & BREADCRUMB                                    */}
-      {/* ============================================================== */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-4">
-        <div>
-          <div className="flex items-center space-x-2 text-xs text-zinc-500 mb-1">
-            <Link
-              href="/designer/templates"
-              className="hover:text-indigo-600 transition-colors flex items-center space-x-1"
-            >
-              <span>←</span>
-              <span>Daftar Template</span>
+  const handleSubmitForReview = () => {
+    Modal.confirm({
+      title: "Submit for Review?",
+      content: `Template "${template.name}" akan diajukan ke tim kurator. Status akan beralih ke Pending Review.`,
+      okText: "Submit",
+      cancelText: "Batal",
+      onOk: () => {
+        submitForReview(template.id);
+        message.success("Template berhasil diajukan untuk review.");
+      },
+    });
+  };
+
+  const handleDelete = () => {
+    Modal.confirm({
+      title: "Hapus template?",
+      content: `"${template.name}" akan dihapus dari data template Anda.`,
+      okText: "Hapus",
+      cancelText: "Batal",
+      okButtonProps: { danger: true },
+      onOk: () => {
+        deleteTemplate(template.id);
+        message.success("Template dihapus.");
+        router.push("/designer/templates");
+      },
+    });
+  };
+
+  // Preview component wrapper
+  const previewContent = (
+    <InvitationRenderer
+      sections={template.sections}
+      className="min-h-full space-y-4 bg-white"
+      emptyState={
+        <div className="flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Canvas template masih kosong"
+          />
+          {isActionableForEdit && (
+            <Link href={`/designer/templates/${template.id}/edit`}>
+              <Button
+                type="primary"
+                icon={<Edit size={15} strokeWidth={1.8} />}
+                className="mt-2 !bg-[#FFAD38] !text-[#3D2516] !font-semibold hover:!bg-[#F5A623] !border-[#FFAD38] shadow-xs !rounded-lg"
+              >
+                Buka Builder
+              </Button>
             </Link>
-            <span>/</span>
-            <span className="text-zinc-800 dark:text-zinc-200 font-medium">
-              Pratinjau ({template.name})
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              {template.name}
-            </h1>
-            <Badge
-              variant={
-                template.status === "Published"
-                  ? "success"
-                  : template.status === "Pending Review"
-                  ? "warning"
-                  : "destructive"
-              }
-            >
-              {template.status}
-            </Badge>
-            <span className="text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 px-2 py-0.5 rounded-sm font-mono">
-              v{template.version}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-500 mt-1">
-            Kategori: <strong className="text-zinc-700 dark:text-zinc-300">{template.themeCategory}</strong> · Dibuat: {template.createdAt}
-          </p>
+          )}
         </div>
+      }
+    />
+  );
 
-        {/* Action Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Zoom Controls: 60%, 75%, 90%, 100% + Stepper */}
-          <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 p-1 rounded-md text-xs space-x-1">
-            <button
-              onClick={() => adjustZoom(-10)}
-              className="px-1.5 py-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-xs transition-colors"
-              title="Perkecil (-10%)"
-            >
-              −
-            </button>
-            <button
-              onClick={() => setZoomLevel(60)}
-              className={`px-2 py-1 rounded-xs transition-colors ${
-                zoomLevel === 60
-                  ? "bg-white dark:bg-zinc-700 shadow-xs font-semibold text-zinc-900 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-800"
-              }`}
-              title="Ukuran 60% (Pas di layar laptop)"
-            >
-              60%
-            </button>
-            <button
-              onClick={() => setZoomLevel(75)}
-              className={`px-2 py-1 rounded-xs transition-colors ${
-                zoomLevel === 75
-                  ? "bg-white dark:bg-zinc-700 shadow-xs font-semibold text-zinc-900 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-800"
-              }`}
-            >
-              75%
-            </button>
-            <button
-              onClick={() => setZoomLevel(90)}
-              className={`px-2 py-1 rounded-xs transition-colors ${
-                zoomLevel === 90
-                  ? "bg-white dark:bg-zinc-700 shadow-xs font-semibold text-zinc-900 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-800"
-              }`}
-            >
-              90%
-            </button>
-            <button
-              onClick={() => setZoomLevel(100)}
-              className={`px-2 py-1 rounded-xs transition-colors ${
-                zoomLevel === 100
-                  ? "bg-white dark:bg-zinc-700 shadow-xs font-semibold text-zinc-900 dark:text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-800"
-              }`}
-            >
-              100%
-            </button>
-            <button
-              onClick={() => adjustZoom(10)}
-              className="px-1.5 py-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-xs transition-colors"
-              title="Perbesar (+10%)"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Fullscreen Preview Toggle Button */}
-          <Button
-            size="sm"
-            onClick={() => setIsFullscreen(true)}
-            className="bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 text-xs flex items-center space-x-1.5 shadow-xs"
-            title="Tampilkan Pratinjau di Layar Penuh"
-          >
-            <span>⛶</span>
-            <span>Layar Penuh (Fullscreen)</span>
-          </Button>
-
-          {/* JSON Inspector Toggle */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowJsonInspector(true)}
-            className="text-xs flex items-center space-x-1.5"
-          >
-            <span>📄</span>
-            <span>Skema JSON</span>
-          </Button>
-
-          {/* Submit for Review */}
-          <Button
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-            onClick={() => alert("Template diajukan ke Admin untuk ditinjau (Approval Workflow PRD Bagian 19)!")}
-          >
-            Ajukan ke Admin
-          </Button>
-        </div>
-      </div>
-
-      {/* ============================================================== */}
-      {/* 2. MAIN PREVIEW AREA (PHONE MOCKUP WORKBENCH)                  */}
-      {/* ============================================================== */}
-      <div className="relative min-h-[680px] bg-gradient-to-b from-zinc-100 via-zinc-100 to-zinc-200 dark:from-zinc-900 dark:via-zinc-900 dark:to-zinc-950 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-start border border-zinc-200 dark:border-zinc-800 shadow-inner overflow-hidden">
-        
-        {/* Subtle Canvas Grid Pattern */}
-        <div
-          className="absolute inset-0 opacity-40 pointer-events-none"
-          style={{
-            backgroundImage: "radial-gradient(#a1a1aa 1px, transparent 1px)",
-            backgroundSize: "20px 20px",
-          }}
-        />
-
-        {/* Device Label Tag & Fullscreen Shortcut */}
-        <div className="relative z-10 mb-4 inline-flex items-center space-x-2 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-xs px-3.5 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-600 dark:text-zinc-300 shadow-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Pratinjau Mobile ({zoomLevel}%)</span>
-          <span className="text-zinc-400">·</span>
-          <button
-            onClick={() => setIsFullscreen(true)}
-            className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium flex items-center space-x-1"
-          >
-            <span>⛶ Buka Layar Penuh</span>
-          </button>
-        </div>
-
-        {/* The Phone Mockup Frame */}
-        <div className="relative z-10 pb-6">
-          <PhoneMockup
-            urlDisplay={`inviteu.id/preview/${template.slug}`}
-            zoomLevel={zoomLevel}
-            templateTitle={template.name}
-          >
-            {template.slug === "emerald-gold-basic" ? (
-              <EmeraldGoldBasicInvitation themeData={template} />
-            ) : template.slug === "bali-tropical" ? (
-              <BaliTropicalInvitation themeData={template} />
-            ) : (
-              <MogranLauraInvitation themeData={template} />
-            )}
-          </PhoneMockup>
-        </div>
-      </div>
-
-      {/* ============================================================== */}
-      {/* 3. FULLSCREEN PREVIEW OVERLAY (FITUR HALAMAN PENUH)            */}
-      {/* ============================================================== */}
-      {isFullscreen && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-md flex flex-col overflow-hidden animate-fadeIn select-none">
-          {/* Top Fullscreen Control Bar */}
-          <div className="h-14 px-6 border-b border-zinc-800 bg-zinc-900/90 flex items-center justify-between text-white shrink-0 z-50">
-            <div className="flex items-center space-x-3">
-              <span className="text-lg">⛶</span>
-              <div>
-                <h2 className="text-sm font-semibold tracking-tight">
-                  Pratinjau Layar Penuh — {template.name}
-                </h2>
-                <p className="text-[11px] text-zinc-400">
-                  {fullscreenMode === "phone" ? "Mode Bingkai Smartphone" : "Mode Tampilan Web Mobile Asli"}
-                </p>
-              </div>
-            </div>
-
-            {/* Middle Mode Switcher */}
-            <div className="flex items-center bg-zinc-800 p-1 rounded-lg text-xs space-x-1">
-              <button
-                onClick={() => setFullscreenMode("phone")}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  fullscreenMode === "phone"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                📱 Bingkai HP
-              </button>
-              <button
-                onClick={() => setFullscreenMode("mobile")}
-                className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                  fullscreenMode === "mobile"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                📲 Web Mobile Penuh
-              </button>
-            </div>
-
-            {/* Right Controls */}
-            <div className="flex items-center space-x-3">
-              {fullscreenMode === "phone" && (
-                <div className="flex items-center bg-zinc-800 px-2 py-1 rounded-md text-xs space-x-2 text-zinc-300">
-                  <span>Zoom:</span>
-                  <button
-                    onClick={() => adjustZoom(-10)}
-                    className="hover:text-white px-1"
-                  >
-                    −
-                  </button>
-                  <span className="font-mono text-white font-medium">{zoomLevel}%</span>
-                  <button
-                    onClick={() => adjustZoom(10)}
-                    className="hover:text-white px-1"
-                  >
-                    +
-                  </button>
-                </div>
-              )}
-
-              {/* Close Fullscreen Button */}
-              <button
-                onClick={() => setIsFullscreen(false)}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white px-3 py-1.5 rounded-md text-xs font-medium flex items-center space-x-1.5 transition-colors border border-zinc-700"
-                title="Tekan Escape untuk keluar"
-              >
-                <span>✕</span>
-                <span>Tutup Layar Penuh (Esc)</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Fullscreen Body Canvas */}
-          <div className="flex-1 overflow-auto p-4 sm:p-8 flex items-center justify-center relative">
-            {/* Subtle Grid in Fullscreen */}
-            <div
-              className="absolute inset-0 opacity-20 pointer-events-none"
-              style={{
-                backgroundImage: "radial-gradient(#ffffff 1px, transparent 1px)",
-                backgroundSize: "24px 24px",
-              }}
-            />
-
-            {fullscreenMode === "phone" ? (
-              <div className="my-auto transition-transform duration-200">
-                <PhoneMockup
-                  urlDisplay={`inviteu.id/preview/${template.slug}`}
-                  zoomLevel={zoomLevel}
-                  templateTitle={template.name}
+  return (
+    <div className="space-y-5">
+      {/* 1. Header with Breadcrumb & Contextual Actions */}
+      <DesignerPageHeader
+        title={template.name}
+        description="Detail spesifikasi template, riwayat keputusan kurasi, dan pratinjau multi-device."
+        actions={
+          <Space wrap size={8}>
+            {/* Action sesuai status */}
+            {isActionableForEdit && (
+              <Link href={`/designer/templates/${template.id}/edit`}>
+                <Button
+                  type="primary"
+                  icon={<Edit size={15} strokeWidth={1.8} />}
+                  className="!bg-[#FFAD38] !text-[#3D2516] !font-semibold hover:!bg-[#F5A623] !border-[#FFAD38] shadow-xs !rounded-lg"
                 >
-                  {template.slug === "emerald-gold-basic" ? (
-                    <EmeraldGoldBasicInvitation themeData={template} />
-                  ) : template.slug === "bali-tropical" ? (
-                    <BaliTropicalInvitation themeData={template} />
-                  ) : (
-                    <MogranLauraInvitation themeData={template} />
-                  )}
-                </PhoneMockup>
-              </div>
-            ) : (
-              /* Edge-to-Edge Standalone Mobile View */
-              <div className="w-full max-w-[420px] h-[92vh] max-h-[860px] bg-[#102218] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative border border-zinc-800">
-                <div className="bg-zinc-900 text-white text-[11px] px-4 py-2 flex items-center justify-between border-b border-zinc-800">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="font-mono">inviteu.id/preview/{template.slug}</span>
-                  </div>
-                  <span className="text-zinc-400">Mobile Safari Web</span>
-                </div>
-                <div className="flex-1 overflow-y-auto overflow-x-hidden relative no-scrollbar">
-                  {template.slug === "emerald-gold-basic" ? (
-                    <EmeraldGoldBasicInvitation themeData={template} />
-                  ) : template.slug === "bali-tropical" ? (
-                    <BaliTropicalInvitation themeData={template} />
-                  ) : (
-                    <MogranLauraInvitation themeData={template} />
-                  )}
-                </div>
-              </div>
+                  {hasRejectionOrRevision
+                    ? "Kembali Mengedit di Builder"
+                    : "Edit di Builder"}
+                </Button>
+              </Link>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* ============================================================== */}
-      {/* 4. JSON SCHEMA INSPECTOR (MODAL / SLIDE-OVER)                  */}
-      {/* ============================================================== */}
-      {showJsonInspector && (
-        <div
-          onClick={() => setShowJsonInspector(false)}
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            {(isDraft || isRejected || isRevision) && (
+              <Button
+                icon={<Send size={15} strokeWidth={1.8} />}
+                className="!rounded-lg"
+                onClick={handleSubmitForReview}
+              >
+                Submit for Review
+              </Button>
+            )}
+
+            {isPublished && (
+              <Button
+                type="primary"
+                icon={<FileEdit size={15} strokeWidth={1.8} />}
+                onClick={handleCreateRevision}
+                className="!bg-[#FFAD38] !text-[#3D2516] !font-semibold hover:!bg-[#F5A623] !border-[#FFAD38] shadow-xs !rounded-lg"
+              >
+                Create Revision
+              </Button>
+            )}
+
+            <Button icon={<Copy size={15} strokeWidth={1.8} />} className="!rounded-lg" onClick={handleDuplicate}>
+              Duplicate
+            </Button>
+
+            {!isLocked && (
+              <Button danger icon={<Trash2 size={15} strokeWidth={1.8} />} className="!rounded-lg" onClick={handleDelete}>
+                Delete
+              </Button>
+            )}
+          </Space>
+        }
+      />
+
+      {/* 2. Status Banners: Revision / Rejected Catatan Admin */}
+      {hasRejectionOrRevision && (
+        <Card
+          className="rounded-[10px] border-[#F8C8C4] bg-[#FFF8F7] shadow-xs"
+          styles={{ body: { padding: "16px 20px" } }}
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col overflow-hidden"
-          >
-            {/* Header */}
-            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertCircle size={22} strokeWidth={1.8} className="mt-0.5 text-[#CB3025] shrink-0" />
               <div>
-                <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
-                  <span>📄</span>
-                  <span>Skema Desain JSON (Data-Driven Template Architecture)</span>
-                </h3>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  Tersimpan di tabel database <code className="text-indigo-600 dark:text-indigo-400 font-mono">template_versions.konten_layout_widget_styling</code>.
-                </p>
+                <div className="flex items-center gap-2">
+                  <Text strong className="text-sm text-[#CB3025]">
+                    Status: Memerlukan Revisi dari Desainer
+                  </Text>
+                  <Tag color="error" className="!rounded-[4px]">Catatan Kurator</Tag>
+                </div>
+                <div className="mt-1.5 rounded-lg border border-[#F8C8C4] bg-white p-3 text-xs text-[#CB3025]">
+                  <Text strong className="block text-[#CB3025]">
+                    General Feedback:
+                  </Text>
+                  <p className="mt-1 italic leading-relaxed">
+                    &quot;{template.rejection_note || "Periksa kembali kontras tipografi dan keselarasan warna sebelum mengajukan ulang."}&quot;
+                  </p>
+                </div>
               </div>
-              <button
-                onClick={() => setShowJsonInspector(false)}
-                className="w-8 h-8 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 flex items-center justify-center"
+            </div>
+
+            <Link href={`/designer/templates/${template.id}/edit`}>
+              <Button
+                type="primary"
+                danger
+                icon={<Edit size={15} strokeWidth={1.8} />}
+                className="shrink-0 !rounded-lg"
               >
-                ✕
-              </button>
-            </div>
-
-            {/* Explanation Note for User */}
-            <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start space-x-2">
-              <span className="text-base">💡</span>
-              <div>
-                <strong>Mengapa Template Didesain Menggunakan JSON?</strong>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
-                  Format JSON memisahkan <em>tata letak data (data schema)</em> dari <em>tampilan visual (React renderer)</em>. Saat Partner mengedit nama mempelai, tanggal, atau foto, sistem tidak perlu merombak kode program Next.js—cukup mengubah data JSON ini di database!
-                </p>
-              </div>
-            </div>
-
-            {/* JSON Code Viewer */}
-            <div className="flex-1 overflow-y-auto p-4 bg-zinc-950 text-zinc-100 font-mono text-xs">
-              <pre className="whitespace-pre-wrap leading-relaxed">
-                {JSON.stringify(template.rawFigmaJson || template.content, null, 2)}
-              </pre>
-            </div>
-
-            {/* Footer */}
-            <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-900">
-              <span className="text-xs text-zinc-500">
-                Total 64 Node Figma Elemen Terdaftar
-              </span>
-              <div className="flex space-x-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCopyJson}
-                  className="text-xs"
-                >
-                  {copiedJson ? "✓ Tersalin ke Clipboard!" : "Salin JSON"}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setShowJsonInspector(false)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs"
-                >
-                  Tutup
-                </Button>
-              </div>
-            </div>
+                Lanjutkan Edit di Builder
+              </Button>
+            </Link>
           </div>
-        </div>
+        </Card>
       )}
+
+      {isPending && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<Clock size={16} strokeWidth={1.8} />}
+          className="!rounded-[10px]"
+          title="Template Dalam Antrean Review"
+          description="Template ini sedang ditinjau oleh tim kurator InviteU. Selama proses peninjauan, template terkunci dari perubahan untuk menjaga konsistensi kurasi."
+        />
+      )}
+
+      {isPublished && (
+        <Alert
+          type="success"
+          showIcon
+          icon={<CheckCircle2 size={16} strokeWidth={1.8} />}
+          className="!rounded-[10px]"
+          title="Template Approved & Published"
+          description="Template telah aktif di katalog Partner InviteU. Untuk melakukan modifikasi, gunakan fitur 'Create Revision' agar template yang sudah digunakan Partner tidak terganggu."
+        />
+      )}
+
+      {/* 3. Main Split View: Left (Details & Feedback) vs Right (Multi-device Preview) */}
+      <div className="grid gap-5 xl:grid-cols-[minmax(340px,1fr)_minmax(0,1.8fr)]">
+        {/* Left Column: Template Information & Feedback */}
+        <div className="space-y-4">
+          {/* Card: Info & Versi Template */}
+          <Card
+            title={
+              <div className="flex items-center justify-between">
+                <span className="font-['Playfair_Display'] text-[16px] font-semibold text-[#422B1C]">
+                  Informasi Template
+                </span>
+                <div className="flex items-center gap-2">
+                  <Tag color="blue" className="!mr-0 font-mono !rounded-[4px]">
+                    v{template.version || "1.0"}
+                  </Tag>
+                  <DesignerStatusTag status={template.status} />
+                </div>
+              </div>
+            }
+            className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs"
+            styles={{ body: { padding: 16 } }}
+          >
+            {/* Thumbnail Display */}
+            {template.thumbnail && !thumbnailError ? (
+              <div className="relative mb-4 aspect-video overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-[#F7F6F4]">
+                <Image
+                  src={template.thumbnail}
+                  alt={`Thumbnail ${template.name}`}
+                  fill
+                  sizes="(max-width: 1280px) 100vw, 40vw"
+                  loading="eager"
+                  className="object-cover"
+                  unoptimized
+                  onError={() => setThumbnailError(true)}
+                />
+              </div>
+            ) : (
+              <div className="mb-4 flex aspect-video items-center justify-center rounded-[10px] border border-dashed border-[#EAE5DF] bg-[#F7F6F4] text-xs text-[#99918A]">
+                Thumbnail belum tersedia
+              </div>
+            )}
+
+            <Title level={5} className="!mb-1 !font-['Playfair_Display'] !text-[#422B1C] !text-[17px]">
+              {template.name}
+            </Title>
+            <Text className="block text-xs leading-relaxed text-[#99918A]">
+              {template.description || "Belum ada deskripsi untuk template ini."}
+            </Text>
+
+            <Divider className="my-3 border-[#EAE5DF]" />
+
+            {/* Metadata Descriptions */}
+            <Descriptions
+              column={1}
+              size="small"
+              styles={{ label: { width: "120px", color: "#99918A" } }}
+              items={[
+                {
+                  key: "category",
+                  label: "Kategori",
+                  children: (
+                    <Text strong className="text-xs text-[#422B1C]">
+                      {template.category_name}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "style",
+                  label: "Gaya Desain",
+                  children: (
+                    <Tag className="!mr-0 text-xs !rounded-[4px]">{template.style}</Tag>
+                  ),
+                },
+                {
+                  key: "slug",
+                  label: "Template Slug",
+                  children: (
+                    <Text code className="text-xs">
+                      {template.slug}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "colors",
+                  label: "Palet Warna",
+                  children: (
+                    <Space size={8}>
+                      <span
+                        className="inline-block h-4 w-4 rounded-full border border-black/10"
+                        style={{ backgroundColor: template.primaryColor }}
+                        title={`Primary: ${template.primaryColor}`}
+                      />
+                      <Text className="text-xs">{template.primaryColor}</Text>
+                      <span
+                        className="inline-block h-4 w-4 rounded-full border border-black/10"
+                        style={{ backgroundColor: template.secondaryColor }}
+                        title={`Secondary: ${template.secondaryColor}`}
+                      />
+                      <Text className="text-xs">{template.secondaryColor}</Text>
+                    </Space>
+                  ),
+                },
+                {
+                  key: "created",
+                  label: "Dibuat",
+                  children: (
+                    <Text className="text-xs text-[#99918A]">
+                      {formatDate(template.created_at)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "updated",
+                  label: "Terakhir Diedit",
+                  children: (
+                    <Text className="text-xs text-[#99918A]">
+                      {formatDate(template.updated_at)}
+                    </Text>
+                  ),
+                },
+              ]}
+            />
+          </Card>
+
+          {/* Card: Section-Specific Feedback */}
+          <Card
+            title={
+              <div className="flex items-center justify-between">
+                <span className="font-['Playfair_Display'] text-[16px] font-semibold text-[#422B1C]">
+                  Feedback per Section
+                </span>
+                <Text className="text-xs text-[#99918A]">
+                  {sectionFeedbacks.filter((s) => s.status === "issue").length}{" "}
+                  catatan
+                </Text>
+              </div>
+            }
+            className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs"
+            styles={{ body: { padding: "12px 16px" } }}
+          >
+            <div className="space-y-2.5">
+              {sectionFeedbacks.map((item, idx) => (
+                <div
+                  key={idx}
+                  className={`rounded-lg border p-2.5 text-xs transition-colors ${
+                    item.status === "issue"
+                      ? "border-[#F8C8C4] bg-[#FFF8F7]"
+                      : "border-[#EAE5DF] bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <Text strong className="text-xs text-[#422B1C]">
+                      {item.sectionName}
+                    </Text>
+                    {item.status === "issue" ? (
+                      <Tag color="error" className="!mr-0 !text-[10px] !rounded-[4px]">
+                        Perlu Perbaikan
+                      </Tag>
+                    ) : (
+                      <Tag color="success" className="!mr-0 !text-[10px] !rounded-[4px]">
+                        Lulus Evaluasi
+                      </Tag>
+                    )}
+                  </div>
+                  <Text
+                    className="mt-1 block text-[11px] leading-relaxed text-[#99918A]"
+                  >
+                    {item.note}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Card: Riwayat Pengajuan & Keputusan Admin */}
+          <Card
+            title={
+              <span className="font-['Playfair_Display'] text-[16px] font-semibold text-[#422B1C]">
+                Riwayat Pengajuan & Keputusan Admin
+              </span>
+            }
+            className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs"
+            styles={{ body: { padding: "16px 20px" } }}
+          >
+            <Timeline
+              className="!text-xs"
+              items={reviewHistory.map((item) => ({
+                color:
+                  item.status === "approved"
+                    ? "#258447"
+                    : item.status === "rejected"
+                      ? "#CB3025"
+                      : item.status === "in_review"
+                        ? "#FFAD38"
+                        : "#99918A",
+                content: (
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Text strong className="text-xs text-[#422B1C]">
+                        {item.title}
+                      </Text>
+                      <Text className="text-[10px] text-[#99918A]">
+                        {item.date}
+                      </Text>
+                    </div>
+                    <Text className="block text-[11px] text-[#99918A]">
+                      Oleh: {item.actor}
+                    </Text>
+                    {item.note && (
+                      <div className="mt-1 rounded-md border border-[#EAE5DF] bg-[#FFF8EE] p-2 text-[11px] italic text-[#422B1C]">
+                        &quot;{item.note}&quot;
+                      </div>
+                    )}
+                  </div>
+                ),
+              }))}
+            />
+          </Card>
+        </div>
+
+        {/* Right Column: Multi-device Live Preview */}
+        <Card
+          title={
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Space size={6}>
+                <Smartphone size={18} strokeWidth={1.8} className="text-[#FFAD38]" />
+                <span className="font-['Playfair_Display'] text-[16px] font-semibold text-[#422B1C]">
+                  Pratinjau Undangan
+                </span>
+              </Space>
+
+              {/* Multi-device switcher: Phone, Mobile, Tablet, Desktop */}
+              <Segmented
+                value={previewMode}
+                onChange={(val) => setPreviewMode(val as DevicePreviewMode)}
+                options={[
+                  {
+                    value: "phone",
+                    icon: <Smartphone size={14} strokeWidth={1.8} />,
+                    label: "Phone Frame",
+                  },
+                  {
+                    value: "mobile",
+                    label: "Mobile (390px)",
+                  },
+                  {
+                    value: "tablet",
+                    icon: <Tablet size={14} strokeWidth={1.8} />,
+                    label: "Tablet (768px)",
+                  },
+                  {
+                    value: "desktop",
+                    icon: <Monitor size={14} strokeWidth={1.8} />,
+                    label: "Desktop",
+                  },
+                ]}
+              />
+            </div>
+          }
+          extra={
+            <Space size={4}>
+              {previewMode === "phone" && (
+                <Button.Group size="small">
+                  <Button onClick={() => adjustZoom(-10)}>-</Button>
+                  <Button onClick={() => setZoom(100)}>{zoom}%</Button>
+                  <Button onClick={() => adjustZoom(10)}>+</Button>
+                </Button.Group>
+              )}
+              <Button
+                size="small"
+                icon={<Maximize2 size={14} strokeWidth={1.8} />}
+                aria-label="Preview layar penuh"
+                onClick={() => setIsFullscreen(true)}
+              />
+            </Space>
+          }
+          className="rounded-[10px] border-[#EAE5DF] bg-white shadow-xs"
+          styles={{ body: { padding: 16 } }}
+        >
+          <div className="flex min-h-[580px] items-start justify-center overflow-auto rounded-[10px] bg-[#F7F6F4] p-4">
+            {previewMode === "phone" && (
+              <DesignerInvitationFrame
+                url={`inviteu.id/preview/${template.slug}`}
+                title={template.name}
+                zoom={zoom}
+              >
+                {previewContent}
+              </DesignerInvitationFrame>
+            )}
+
+            {previewMode === "mobile" && (
+              <div className="w-[390px] max-w-full overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-white shadow-md">
+                <div className="border-b border-[#EAE5DF] bg-[#FFF8EE] px-3 py-1.5 text-center text-[11px] font-medium text-[#422B1C]">
+                  Mobile Screen (390px) · inviteu.id/preview/{template.slug}
+                </div>
+                <div className="h-[680px] overflow-y-auto">
+                  {previewContent}
+                </div>
+              </div>
+            )}
+
+            {previewMode === "tablet" && (
+              <div className="w-[768px] max-w-full overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-white shadow-md">
+                <div className="border-b border-[#EAE5DF] bg-[#FFF8EE] px-4 py-2 text-center text-xs font-medium text-[#422B1C]">
+                  Tablet Viewport (768px) · inviteu.id/preview/{template.slug}
+                </div>
+                <div className="h-[720px] overflow-y-auto">
+                  {previewContent}
+                </div>
+              </div>
+            )}
+
+            {previewMode === "desktop" && (
+              <div className="w-full max-w-[1080px] overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-white shadow-md">
+                <div className="border-b border-[#EAE5DF] bg-[#FFF8EE] px-4 py-2 text-center text-xs font-medium text-[#422B1C]">
+                  Desktop Viewport (100%) · inviteu.id/preview/{template.slug}
+                </div>
+                <div className="h-[760px] overflow-y-auto">
+                  {previewContent}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* 4. Fullscreen Modal Preview */}
+      <Modal
+        open={isFullscreen}
+        title={
+          <Space>
+            <Smartphone size={16} strokeWidth={1.8} className="text-[#FFAD38]" />
+            <span className="font-['Playfair_Display'] text-base font-semibold text-[#422B1C]">Pratinjau Layar Penuh — {template.name}</span>
+          </Space>
+        }
+        onCancel={() => setIsFullscreen(false)}
+        footer={null}
+        width="100vw"
+        centered={false}
+        styles={{
+          wrapper: { padding: 0 },
+          container: {
+            height: "100dvh",
+            borderRadius: 0,
+            display: "flex",
+            flexDirection: "column",
+          },
+          body: { flex: 1, minHeight: 0, overflow: "auto", padding: 16 },
+        }}
+      >
+        <div className="flex min-h-full items-start justify-center rounded-[10px] bg-[#F7F6F4] p-4 sm:items-center sm:p-8">
+          {previewMode === "phone" && (
+            <DesignerInvitationFrame
+              url={`inviteu.id/preview/${template.slug}`}
+              title={template.name}
+              zoom={zoom}
+            >
+              {previewContent}
+            </DesignerInvitationFrame>
+          )}
+
+          {previewMode === "mobile" && (
+            <div className="w-[390px] max-w-full overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-white shadow-xl">
+              <div className="h-[min(88vh,820px)] overflow-y-auto">
+                {previewContent}
+              </div>
+            </div>
+          )}
+
+          {previewMode === "tablet" && (
+            <div className="w-[768px] max-w-full overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-white shadow-xl">
+              <div className="h-[min(88vh,840px)] overflow-y-auto">
+                {previewContent}
+              </div>
+            </div>
+          )}
+
+          {previewMode === "desktop" && (
+            <div className="w-full max-w-[1200px] overflow-hidden rounded-[10px] border border-[#EAE5DF] bg-white shadow-xl">
+              <div className="h-[min(88vh,880px)] overflow-y-auto">
+                {previewContent}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
-

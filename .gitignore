@@ -1,2 +1,6 @@
 
 backend-golang/server.exe
+
+# Local dependencies and build output
+node_modules/
+.next/

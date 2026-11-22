@@ -1,0 +1,356 @@
+/**
+ * CSS Keyframes & Classes for InviteU Animation System
+ */
+
+/* ── SCROLL ANIMATIONS ──────────────────────────────────────────────────────── */
+
+@keyframes iuFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes iuFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes iuSlideOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 36px, 0);
+  }
+}
+
+@keyframes iuShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-8px);
+  }
+  40%, 80% {
+    transform: translateX(8px);
+  }
+}
+
+@keyframes iuSlideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 36px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes iuSlideDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -36px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes iuSlideLeft {
+  from {
+    opacity: 0;
+    transform: translate3d(-40px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes iuSlideRight {
+  from {
+    opacity: 0;
+    transform: translate3d(40px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes iuZoomIn {
+  from {
+    opacity: 0;
+    transform: scale3d(0.85, 0.85, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes iuZoomOut {
+  from {
+    opacity: 0;
+    transform: scale3d(1.15, 1.15, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+@keyframes iuFlip {
+  from {
+    opacity: 0;
+    transform: perspective(600px) rotateY(70deg);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(600px) rotateY(0deg);
+  }
+}
+
+@keyframes iuRotate {
+  from {
+    opacity: 0;
+    transform: rotate(-15deg) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes iuParallax {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+/* ── FUNCTIONAL & CONTINUOUS ANIMATIONS ─────────────────────────────────────── */
+
+@keyframes iuPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(252, 176, 64, 0.4);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 14px 4px rgba(252, 176, 64, 0.25);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(252, 176, 64, 0);
+  }
+}
+
+@keyframes iuBounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes iuVinylSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes iuCountdownTick {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── CHARACTER & MOTION ANIMATIONS ─────────────────────────────────────────── */
+
+@keyframes iuGentleSway {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-4px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(-2px) rotate(-1deg);
+  }
+}
+
+@keyframes iuMonogramGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px rgba(252, 176, 64, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(252, 176, 64, 0.6));
+  }
+}
+
+/* ── ANIMATION CLASSES ──────────────────────────────────────────────────────── */
+
+.animFadeIn {
+  animation-name: iuFadeIn;
+  animation-fill-mode: both;
+}
+
+.animFadeOut {
+  animation-name: iuFadeOut;
+  animation-fill-mode: both;
+}
+
+.animSlideOut {
+  animation-name: iuSlideOut;
+  animation-fill-mode: both;
+}
+
+.animShake {
+  animation-name: iuShake;
+  animation-timing-function: ease-in-out;
+}
+
+.animSlideUp {
+  animation-name: iuSlideUp;
+  animation-fill-mode: both;
+}
+
+.animSlideDown {
+  animation-name: iuSlideDown;
+  animation-fill-mode: both;
+}
+
+.animSlideLeft {
+  animation-name: iuSlideLeft;
+  animation-fill-mode: both;
+}
+
+.animSlideRight {
+  animation-name: iuSlideRight;
+  animation-fill-mode: both;
+}
+
+.animZoomIn {
+  animation-name: iuZoomIn;
+  animation-fill-mode: both;
+}
+
+.animZoomOut {
+  animation-name: iuZoomOut;
+  animation-fill-mode: both;
+}
+
+.animFlip {
+  animation-name: iuFlip;
+  animation-fill-mode: both;
+}
+
+.animRotate {
+  animation-name: iuRotate;
+  animation-fill-mode: both;
+}
+
+.animParallax {
+  animation-name: iuParallax;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.animPulse {
+  animation-name: iuPulse;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.animBounce {
+  animation-name: iuBounce;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.animVinylSpin {
+  animation-name: iuVinylSpin;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+
+.animCountdownTick {
+  animation-name: iuCountdownTick;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animCharacterSway {
+  animation-name: iuGentleSway;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.animMotionGlow {
+  animation-name: iuMonogramGlow;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+.animSubtleHover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.animSubtleHover:hover {
+  transform: translateY(-3px) scale(1.015);
+  box-shadow: 0 8px 20px rgba(58, 35, 19, 0.15) !important;
+}
+
+/* ── PREFERS REDUCED MOTION ─────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .animFadeIn,
+  .animSlideUp,
+  .animSlideDown,
+  .animSlideLeft,
+  .animSlideRight,
+  .animZoomIn,
+  .animZoomOut,
+  .animFlip,
+  .animRotate,
+  .animParallax,
+  .animPulse,
+  .animBounce,
+  .animVinylSpin,
+  .animCountdownTick,
+  .animCharacterSway,
+  .animMotionGlow {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

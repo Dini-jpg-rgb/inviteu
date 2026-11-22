@@ -4,10 +4,112 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Badge } from "@/components/ui/Badge";
+import {
+  LayoutDashboard,
+  Palette,
+  User,
+  Plus,
+  LogOut,
+  FolderOpen,
+  GitBranch,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { DesignerTemplatesProvider } from "./designer/DesignerTemplatesContext";
+import { ConfigProvider, App as AntdApp } from "antd";
 
-export default function DesignerLayout({ children }: { children: React.ReactNode }) {
+const designerTheme = {
+  token: {
+    colorPrimary: "#FFAD38",
+    colorInfo: "#FFAD38",
+    colorSuccess: "#258447",
+    colorWarning: "#F5A623",
+    colorError: "#CB3025",
+    colorTextBase: "#422B1C",
+    colorText: "#422B1C",
+    colorTextHeading: "#422B1C",
+    colorTextSecondary: "#99918A",
+    colorBgBase: "#FFFFFF",
+    colorBgLayout: "#F7F6F4",
+    colorBgContainer: "#FFFFFF",
+    colorBorder: "#EAE5DF",
+    colorBorderSecondary: "#EAE5DF",
+    borderRadius: 8,
+    fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  },
+  components: {
+    Button: {
+      colorPrimary: "#FFAD38",
+      colorPrimaryHover: "#F5A623",
+      colorPrimaryActive: "#E09214",
+      colorPrimaryText: "#3D2516",
+      colorLink: "#FFAD38",
+      colorLinkHover: "#F5A623",
+      borderRadius: 8,
+      defaultBorderColor: "#EAE5DF",
+      defaultColor: "#422B1C",
+      defaultBg: "#FFFFFF",
+      defaultHoverBg: "#FAF8F5",
+      defaultHoverBorderColor: "#FFAD38",
+      defaultHoverColor: "#3D2516",
+    },
+    Card: {
+      colorBorderSecondary: "#EAE5DF",
+      colorBgContainer: "#FFFFFF",
+      borderRadiusLG: 10,
+    },
+    Table: {
+      headerBg: "#F7F6F4",
+      headerColor: "#422B1C",
+      borderColor: "#EAE5DF",
+      rowHoverBg: "#FAF8F5",
+      colorText: "#422B1C",
+    },
+    Input: {
+      activeBorderColor: "#FFAD38",
+      hoverBorderColor: "#FFAD38",
+      colorBorder: "#EAE5DF",
+      colorText: "#422B1C",
+      colorTextPlaceholder: "#99918A",
+    },
+    Select: {
+      colorPrimary: "#FFAD38",
+      colorPrimaryHover: "#FFAD38",
+      colorBorder: "#EAE5DF",
+      optionSelectedBg: "#FFF8EE",
+      optionSelectedColor: "#422B1C",
+    },
+    Tabs: {
+      colorPrimary: "#FFAD38",
+      itemSelectedColor: "#3D2516",
+      itemHoverColor: "#FFAD38",
+      inkBarColor: "#FFAD38",
+    },
+    Segmented: {
+      itemSelectedBg: "#FFFFFF",
+      itemSelectedColor: "#3D2516",
+      itemColor: "#99918A",
+      itemHoverColor: "#422B1C",
+      trackBg: "#EAE5DF",
+    },
+    Tag: {
+      borderRadiusSM: 999,
+    },
+    Timeline: {
+      tailColor: "#EAE5DF",
+    },
+    Modal: {
+      borderRadiusLG: 12,
+      contentBg: "#FFFFFF",
+      headerBg: "#FFFFFF",
+    },
+    Pagination: {
+      colorPrimary: "#FFAD38",
+      itemActiveBg: "#FFAD38",
+    },
+  },
+};
+
+function DesignerLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { logout } = useAuth();
 
@@ -20,46 +122,44 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
     );
   }
 
-  // 3 Menu Utama Designer sesuai PRD v3.0 Bagian 17
+  // Menu Navigasi Designer Sederhana & Terstruktur
   const designerNavigation = [
     {
       name: "Dashboard",
       href: "/designer/dashboard",
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-        </svg>
-      ),
+      icon: <LayoutDashboard size={18} strokeWidth={1.8} />,
     },
     {
-      name: "Template Management",
+      name: "My Templates",
       href: "/designer/templates",
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-      ),
+      icon: <Palette size={18} strokeWidth={1.8} />,
+    },
+    {
+      name: "Asset Library",
+      href: "/designer/assets",
+      icon: <FolderOpen size={18} strokeWidth={1.8} />,
+    },
+    {
+      name: "Riwayat Revisi",
+      href: "/designer/revisions",
+      icon: <GitBranch size={18} strokeWidth={1.8} />,
     },
     {
       name: "Profil Desainer",
       href: "/designer/profile",
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-      ),
+      icon: <User size={18} strokeWidth={1.8} />,
     },
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-indigo-50/20 dark:bg-zinc-950">
+    <div className="flex h-screen overflow-hidden bg-[#F7F6F4] text-[#422B1C]">
       {/* Sidebar Designer sesuai PRD Bagian 17 */}
-      <aside className="w-[260px] shrink-0 h-screen sticky top-0 overflow-y-auto border-r border-zinc-200 bg-white p-6 flex flex-col justify-between dark:border-zinc-800 dark:bg-zinc-900">
+      <aside className="w-[260px] shrink-0 h-screen sticky top-0 overflow-y-auto border-r border-[#341F12] bg-[#3D2516] p-6 flex flex-col justify-between select-none shadow-sm">
         <div className="flex flex-col gap-6">
           {/* InviteU Circular Logo - Centered in Sidebar */}
           <div className="pt-1 flex items-center justify-center">
             <Link href="/designer/templates" className="inline-flex items-center justify-center">
-              <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md border border-zinc-200/80 hover:scale-105 transition-transform">
+              <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center p-1.5 shadow-md border border-[#EAE5DF]/40 hover:scale-105 transition-transform">
                 <Image
                   src="/logo-inviteu.svg.svg"
                   alt="InviteU Logo"
@@ -76,33 +176,35 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
           {/* Quick Action Button Create Template (PRD 18.3) */}
           <Link
             href="/designer/templates/builder"
-            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow hover:bg-indigo-700 transition"
+            className="flex items-center justify-center gap-2 rounded-lg bg-[#FFAD38] hover:bg-[#F5A623] active:bg-[#E09214] px-4 py-2.5 text-xs font-semibold text-[#3D2516] shadow-xs transition cursor-pointer"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>+ Buat Template Baru</span>
+            <Plus size={16} strokeWidth={2.2} />
+            <span>Buat Template Baru</span>
           </Link>
 
           {/* Navigation Menu */}
-          <nav className="flex flex-col gap-1">
-            <p className="px-3 text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-1">
+          <nav className="flex flex-col gap-1.5">
+            <p className="px-3 text-[11px] font-semibold text-[#99918A]/90 uppercase tracking-wider mb-1">
               Ruang Kerja Kreatif
             </p>
             {designerNavigation.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/designer/dashboard" && pathname.startsWith(item.href));
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/designer/dashboard" && pathname.startsWith(item.href));
 
               return (
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs transition-colors ${
                     isActive
-                      ? "bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-950/60 dark:text-indigo-300"
-                      : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                      ? "bg-[#FFAD38] text-[#3D2516] font-semibold shadow-xs"
+                      : "text-[#EAE5DF] hover:bg-[#4E3220] hover:text-white font-medium"
                   }`}
                 >
-                  {item.icon}
+                  <span className={isActive ? "text-[#3D2516]" : "text-[#EAE5DF]"}>
+                    {item.icon}
+                  </span>
                   <span>{item.name}</span>
                 </Link>
               );
@@ -111,33 +213,51 @@ export default function DesignerLayout({ children }: { children: React.ReactNode
         </div>
 
         {/* Footer info role & Logout button */}
-        <div className="space-y-2">
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-800/40">
+        <div className="space-y-2.5">
+          <div className="rounded-xl border border-[#4E3220] bg-[#341F12] p-3 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">Hak Akses: Desainer</span>
-              <Badge variant="info">Role-03</Badge>
+              <span className="font-semibold text-white">Hak Akses: Desainer</span>
+              <span className="bg-[#FFAD38]/20 text-[#FFAD38] border border-[#FFAD38]/30 px-2 py-0.5 rounded text-[10px] font-semibold">
+                Role-03
+              </span>
             </div>
-            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <p className="mt-1 text-[11px] text-[#99918A]">
               Fokus pembuatan template & revisi feedback admin.
             </p>
           </div>
 
           <button
             onClick={() => logout()}
-            className="w-full flex items-center justify-center space-x-2 py-2 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors"
+            className="w-full flex items-center justify-center space-x-2 py-2 px-3 text-xs font-medium text-[#FF8A80] hover:bg-[#4E3220] hover:text-[#FF5252] rounded-lg border border-[#4E3220] transition-colors cursor-pointer"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut size={15} strokeWidth={1.8} />
             <span>Keluar (Logout)</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 h-screen overflow-y-auto p-8">
+      <main
+        className={`flex-1 h-screen ${
+          pathname.includes("/edit") || pathname.includes("/builder")
+            ? "overflow-hidden p-0"
+            : "overflow-y-auto p-6 lg:p-8"
+        } bg-[#F7F6F4]`}
+      >
         {children}
       </main>
     </div>
+  );
+}
+
+export default function DesignerLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <ConfigProvider theme={designerTheme}>
+      <AntdApp>
+        <DesignerTemplatesProvider>
+          <DesignerLayoutContent>{children}</DesignerLayoutContent>
+        </DesignerTemplatesProvider>
+      </AntdApp>
+    </ConfigProvider>
   );
 }
