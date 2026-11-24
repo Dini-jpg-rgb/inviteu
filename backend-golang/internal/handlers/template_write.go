@@ -49,6 +49,7 @@ type TemplateWriteResponse struct {
 	Price           string    `json:"price"`
 	Style           *string   `json:"style"`
 	Color           *string   `json:"color"`
+	Tier            *int16    `json:"tier"`
 	Status          string    `json:"status"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
@@ -63,6 +64,7 @@ type CreateTemplateRequest struct {
 	Style           *string  `json:"style"`
 	Color           *string  `json:"color"`
 	ThumbnailFileID *int64   `json:"thumbnail_file_id"`
+	Tier            *int16   `json:"tier"`
 }
 
 func templateAuthUser(c *gin.Context) (int64, string, bool) {
@@ -140,7 +142,7 @@ func randomTemplateHexSuffix(chars int) string {
 // CreateTemplate creates a new template in draft status.
 func CreateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, _, ok := templateAuthUser(c)
+		userID, role, ok := templateAuthUser(c)
 		if !ok {
 			return
 		}
@@ -243,6 +245,25 @@ func CreateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 			fieldErrors["thumbnail_file_id"] = "thumbnail_file_id must be a positive integer"
 		}
 
+		// Tier ditetapkan oleh admin. Designer tidak boleh mengirim field tier.
+		if role == "designer" && req.Tier != nil {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "Only admin can assign template tier",
+				"errors": gin.H{
+					"tier": "only_admin_can_assign_template_tier",
+				},
+			})
+			return
+		}
+		if role == "admin" {
+			if req.Tier == nil {
+				fieldErrors["tier"] = "tier is required for admin-created templates"
+			} else if *req.Tier < 1 || *req.Tier > 3 {
+				fieldErrors["tier"] = "tier must be 1, 2, or 3"
+			}
+		}
+
 		if len(fieldErrors) > 0 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
@@ -306,10 +327,10 @@ func CreateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 				ctx,
 				`INSERT INTO templates (
 					category_id, designer_id, name, slug, description,
-					thumbnail_file_id, price, style, color, status
-				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'draft')
+					thumbnail_file_id, price, style, color, tier, status
+				) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'draft')
 				RETURNING id, category_id, designer_id, name, slug, description,
-				          thumbnail_file_id, price::text, style, color, status, created_at, updated_at`,
+				          thumbnail_file_id, price::text, style, color, tier, status, created_at, updated_at`,
 				req.CategoryID,
 				userID,
 				name,
@@ -319,6 +340,7 @@ func CreateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 				priceVal,
 				cleanStyle,
 				cleanColor,
+				req.Tier,
 			).Scan(
 				&res.ID,
 				&res.CategoryID,
@@ -330,6 +352,7 @@ func CreateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 				&res.Price,
 				&res.Style,
 				&res.Color,
+				&res.Tier,
 				&res.Status,
 				&res.CreatedAt,
 				&res.UpdatedAt,
@@ -699,6 +722,33 @@ func UpdateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 			}
 		}
 
+		// 9. tier hanya dapat ditetapkan atau diubah oleh admin.
+		if rawVal, present := rawMap["tier"]; present {
+			if role != "admin" {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": "Only admin can assign or change template tier",
+					"errors": gin.H{
+						"tier": "only_admin_can_change_template_tier",
+					},
+				})
+				return
+			}
+
+			if string(bytes.TrimSpace(rawVal)) == "null" {
+				fieldErrors["tier"] = "tier cannot be null"
+			} else {
+				var tier int16
+				if err := json.Unmarshal(rawVal, &tier); err != nil {
+					fieldErrors["tier"] = "tier must be an integer between 1 and 3"
+				} else if tier < 1 || tier > 3 {
+					fieldErrors["tier"] = "tier must be 1, 2, or 3"
+				} else {
+					setFields["tier"] = tier
+				}
+			}
+		}
+
 		if len(fieldErrors) > 0 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
@@ -740,9 +790,15 @@ func UpdateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 		setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
 
 		var whereClause string
+		tierOnlyAdminUpdate := role == "admin" && len(keys) == 1 && keys[0] == "tier"
 		if role == "designer" {
 			whereClause = fmt.Sprintf("WHERE id = $%d AND designer_id = $%d AND status IN ('draft', 'revision')", argIndex, argIndex+1)
 			args = append(args, templateID, userID)
+		} else if tierOnlyAdminUpdate {
+			// Admin boleh mengubah tier saja tanpa mengubah konten template yang sudah publish.
+			// Perubahan tier tidak mengubah invitation yang sudah terbit.
+			whereClause = fmt.Sprintf("WHERE id = $%d", argIndex)
+			args = append(args, templateID)
 		} else {
 			whereClause = fmt.Sprintf("WHERE id = $%d AND status IN ('draft', 'revision')", argIndex)
 			args = append(args, templateID)
@@ -753,7 +809,7 @@ func UpdateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 			 SET %s
 			 %s
 			 RETURNING id, category_id, designer_id, name, slug, description,
-			           thumbnail_file_id, price::text, style, color, status, created_at, updated_at`,
+			           thumbnail_file_id, price::text, style, color, tier, status, created_at, updated_at`,
 			strings.Join(setClauses, ", "),
 			whereClause,
 		)
@@ -770,6 +826,7 @@ func UpdateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 			&res.Price,
 			&res.Style,
 			&res.Color,
+			&res.Tier,
 			&res.Status,
 			&res.CreatedAt,
 			&res.UpdatedAt,
@@ -777,6 +834,14 @@ func UpdateTemplate(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
+				// Tier-only admin update tidak dibatasi status; ErrNoRows berarti ID tidak ditemukan.
+				if tierOnlyAdminUpdate {
+					c.JSON(http.StatusNotFound, gin.H{
+						"success": false,
+						"message": "Template not found",
+					})
+					return
+				}
 				// 0 rows affected: Differentiate 404 vs 409
 				if role == "designer" {
 					var dbDesignerID int64
