@@ -1,0 +1,26 @@
+{
+  "name": "Emerald Gold Basic",
+  "version": "1.0",
+  "theme": "emerald-gold-basic",
+  "author": "InviteU Designer Team",
+  "tier": "basic",
+  "palette": {
+    "primary": "#c59b4e",
+    "secondary": "#d4a853",
+    "background": "#0f4a38",
+    "cardBg": "#145843",
+    "text": "#ffffff",
+    "accent": "#c59b4e"
+  },
+  "sections": [
+    "cover",
+    "opening",
+    "couple",
+    "event-details",
+    "countdown",
+    "rsvp",
+    "digital-gift",
+    "closing"
+  ]
+}
+
